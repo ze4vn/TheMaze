@@ -45,6 +45,7 @@ window.__stopMenuMusic = () => {
     menuAudio.pause();
     menuAudio.currentTime = 0;
 };
+
 function playIntro() {
     return new Promise((resolve) => {
         setTimeout(() => { introBlack.classList.add('show'); }, 400);
@@ -60,12 +61,8 @@ function playIntro() {
 let targetRotX = 0, targetRotY = 0;
 let curRotX = 0, curRotY = 0;
 let mouseNX = 0, mouseNY = 0;
-let menuParallaxActive = true;
 
 document.addEventListener('mousemove', (e) => {
-    if (!menuParallaxActive) return;
-    if (menu.classList.contains('hidden')) return;
-
     mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
     mouseNY = (e.clientY / window.innerHeight) * 2 - 1;
     targetRotY = mouseNX * 3.2;
@@ -73,7 +70,8 @@ document.addEventListener('mousemove', (e) => {
 });
 
 function parallaxLoop() {
-    if (menuParallaxActive && !menu.classList.contains('hidden') && menuBgWrap) {
+
+    if (!menu.classList.contains('hidden') && menuBgWrap) {
         curRotX += (targetRotX - curRotX) * 0.08;
         curRotY += (targetRotY - curRotY) * 0.08;
         const tx = -mouseNX * 12;
@@ -84,6 +82,10 @@ function parallaxLoop() {
     requestAnimationFrame(parallaxLoop);
 }
 parallaxLoop();
+
+window.__resumeMenuParallax = () => {
+
+};
 
 logsBtn.addEventListener('click', () => logsPanel.classList.add('open'));
 logsClose.addEventListener('click', () => logsPanel.classList.remove('open'));
@@ -108,7 +110,6 @@ function showCredits(closeAfter) {
     creditsRunning = true;
 
     window.__stopMenuMusic();
-    menuParallaxActive = false;
     menu.classList.add('hidden');
     logsPanel.classList.remove('open');
 
@@ -144,7 +145,6 @@ function showCredits(closeAfter) {
             if (closeAfter) {
                 hardClose();
             } else {
-
                 creditsScreen.classList.add('fade-out');
                 setTimeout(() => {
                     creditsScreen.classList.remove('active', 'visible', 'fade-out');
@@ -152,7 +152,6 @@ function showCredits(closeAfter) {
                     creditsText.style.top = '100%';
 
                     menu.classList.remove('hidden');
-                    menuParallaxActive = true;
                     menuAudio.play().catch(() => {});
                 }, 850);
             }
@@ -169,9 +168,7 @@ function hardClose() {
         }
     } catch (e) {}
 
-    try {
-        window.open('', '_self', '');
-    } catch (e) {}
+    try { window.open('', '_self', ''); } catch (e) {}
 
     let attempts = 0;
     const tryClose = () => {
@@ -181,9 +178,21 @@ function hardClose() {
         if (attempts < 20) setTimeout(tryClose, 50);
     };
     tryClose();
+
     setTimeout(() => {
-        try { window.location.href = 'about:blank'; } catch (e) {}
-    }, 300);
+
+        if (document.hidden) return;
+        const msg = document.createElement('div');
+        msg.style.cssText = [
+            'position:fixed', 'inset:0', 'background:#000',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'color:#fff', 'font-family:"Times New Roman",serif',
+            'font-size:24px', 'letter-spacing:4px', 'text-align:center',
+            'padding:40px', 'z-index:99999999'
+        ].join(';');
+        msg.textContent = 'Uhh There Is No Close Feature, Just Press Alt+F4';
+        document.body.appendChild(msg);
+    }, 800);
 }
 
 let game = null;
@@ -208,7 +217,6 @@ async function startGame() {
     isStarting = true;
 
     window.__stopMenuMusic();
-    menuParallaxActive = false;
 
     menu.classList.add('hidden');
     logsPanel.classList.remove('open');
@@ -252,12 +260,10 @@ btnSettings.addEventListener('click', () => {
 });
 
 btnCredits.addEventListener('click', () => showCredits(false));
-
 btnExit.addEventListener('click', () => showCredits(true));
 
 (async function boot() {
     await playIntro();
     menu.classList.remove('hidden');
-    menuParallaxActive = true;
     menuAudio.play().catch(() => {});
 })();
