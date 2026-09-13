@@ -10,8 +10,6 @@ import { generateMap2 } from './GameMap2.js';
 import { generateMap3 } from './GameMap3.js';
 import { Entity } from './Entity.js';
 
-//more soon
-
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
@@ -53,7 +51,6 @@ const FLASH_ZOOM_STEP = 0.12;
 const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
 const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
-// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
@@ -145,6 +142,8 @@ export class Game {
         this.sanity = 100;
         this.gameTime = START_TIME;
         this.isDead = false;
+        this.gameWon = false;
+        this.invincible = false;
 
         this.keys = {};
         this.isLocked = false;
@@ -262,8 +261,8 @@ export class Game {
     }
 
     setupLights() {
-        this.scene.add(new THREE.AmbientLight(0x0a0a0e, 0.25));
-        this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.18));
+        this.scene.add(new THREE.AmbientLight(0x0a0a0e, 0.22));
+        this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.15));
 
         const flashlight = new THREE.SpotLight(
             FLASH_COLOR_NORMAL.getHex(),
@@ -400,9 +399,13 @@ export class Game {
         };
         this.realismPass = new ShaderPass(realismShader);
         composer.addPass(this.realismPass);
+
+        // Bloom — higher threshold so only the very brightest pixels bloom
         composer.addPass(new UnrealBloomPass(
             new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-            0.25, 0.15, 0.08
+            0.18,   // strength
+            0.20,   // radius
+            0.42    // threshold (raised from 0.08)
         ));
         composer.addPass(new OutputPass());
         this.composer = composer;
@@ -419,7 +422,7 @@ export class Game {
         document.getElementById('btnRespawn').addEventListener('click', () => this.respawn());
         document.getElementById('btnMainMenu').addEventListener('click', () => this.goToMainMenu());
         document.getElementById('btnRestartLevels').addEventListener('click', () => this.restartLevels());
-        document.getElementById('winContinue').addEventListener('click', () => location.reload());
+        document.getElementById('winContinue').addEventListener('click', () => this.goToMainMenu());
     }
 
     setupConsole() {
@@ -483,7 +486,10 @@ export class Game {
 
     teleportToLevel(internalLevel) {
         this.isDead = false;
+        this.gameWon = false;
+        this.invincible = false;
         this.screen.hideDeathOverlay();
+        document.getElementById('winOverlay').classList.remove('active');
         this.currentLevel = internalLevel;
         this.generateLevel(internalLevel);
         this.sanity = 100;
@@ -552,6 +558,7 @@ export class Game {
     }
     onClick() {
         if (this.consoleOpen) return;
+        if (this.gameWon) return;
         if (this.isLocked) this.flashlightOn = !this.flashlightOn;
         else if (!this.isTransitioning && !this.isDead) {
             try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
@@ -702,6 +709,7 @@ export class Game {
 
     triggerDeath(cause) {
         if (this.isDead) return;
+        if (this.invincible || this.gameWon) return;
         this.isDead = true;
         this.isLocked = false;
         if (document.pointerLockElement) document.exitPointerLock();
@@ -717,10 +725,32 @@ export class Game {
         this.screen.showDeathOverlay();
     }
 
+    triggerWin() {
+        if (this.gameWon) return;
+        this.gameWon = true;
+        this.invincible = true;
+        this.isLocked = false;
+        if (document.pointerLockElement) document.exitPointerLock();
+
+        if (this.entity) this.entity.isActive = false;
+
+        this.sound.loop('map1', false);
+        this.sound.loop('map2', false);
+        this.sound.loop('map3', false);
+        this.sound.loop('bloodage', false);
+        this.sound.loop('entity', false);
+        this._bloodageActive = false;
+
+        document.getElementById('winOverlay').classList.add('active');
+    }
+
     respawn() {
         if (!this.isDead) return;
         this.isDead = false;
+        this.gameWon = false;
+        this.invincible = false;
         this.screen.hideDeathOverlay();
+        document.getElementById('winOverlay').classList.remove('active');
         this.sound.stop('death');
 
         this.sanity = 100;
@@ -748,7 +778,10 @@ export class Game {
 
     restartLevels() {
         this.screen.hideDeathOverlay();
+        document.getElementById('winOverlay').classList.remove('active');
         this.sound.stop('death');
+        this.gameWon = false;
+        this.invincible = false;
         this.gameTime = START_TIME;
         this.currentLevel = 0;
         this.isDead = false;
@@ -767,19 +800,27 @@ export class Game {
 
     goToMainMenu() {
         this.screen.hideDeathOverlay();
-        this.sound.stopAll();
-        document.getElementById('mainMenu').classList.remove('hidden');
         document.getElementById('winOverlay').classList.remove('active');
-        window.__startMenuMusic && window.__startMenuMusic();
+        this.sound.stopAll();
+        if (document.pointerLockElement) document.exitPointerLock();
+        this.isLocked = false;
+
         this.isDead = false;
+        this.gameWon = false;
+        this.invincible = false;
         this.gameRunning = true;
         this.gameTime = START_TIME;
         this.sanity = 100;
         this.stamina = MAX_STAMINA;
         this.flashlightZoom = 0;
+        this.schizoTimer = 0;
+        this.isSchizo = false;
         this.currentLevel = 0;
         this.generateLevel(0);
         this.prevTime = performance.now();
+
+        document.getElementById('mainMenu').classList.remove('hidden');
+        window.__startMenuMusic && window.__startMenuMusic();
     }
 
     animate(time) {
@@ -787,10 +828,17 @@ export class Game {
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
         this.prevTime = time;
 
+        // ── Win freeze: only render, skip all logic ──
+        if (this.gameWon) {
+            this.composer.render();
+            this.animationId = requestAnimationFrame(this.animate);
+            return;
+        }
+
         if (this.playerJumpHeardTimer > 0) this.playerJumpHeardTimer -= dt;
         else this.playerJustJumped = false;
 
-        if (!this.isDead && this.gameRunning) {
+        if (!this.isDead && this.gameRunning && !this.gameWon) {
             this.gameTime -= dt;
             if (this.gameTime < 0) this.gameTime = 0;
             this.screen.updateTimerUI(this.gameTime);
@@ -838,17 +886,6 @@ export class Game {
             }
         } else {
             this.sound.loop('entity', false);
-        }
-
-        // ── Water ripple update (Level 3) ──
-        if (this.waterReflector) {
-            this.waterReflector.material.uniforms.time.value = time * 0.001;
-            const px = this.cameraGroup.position.x;
-            const pz = this.cameraGroup.position.z;
-            const totalSize = this.totalSize;
-            const u = px / totalSize + 0.5;
-            const v = 0.5 - pz / totalSize;
-            this.waterReflector.material.uniforms.playerPos.value.set(u, v);
         }
 
         const p = document.getElementById('infoPanel');
@@ -1243,13 +1280,13 @@ export class Game {
     }
 
     checkTeleporter() {
-        if (this.isTransitioning || this.isDead) return;
+        if (this.isTransitioning || this.isDead || this.gameWon) return;
         const px = this.cameraGroup.position.x, pz = this.cameraGroup.position.z;
         const dist = Math.sqrt((px - this.teleporterPos.x) ** 2 + (pz - this.teleporterPos.z) ** 2);
         if (dist < 1.0) {
             if (this.currentLevel === 0) this.transitionToNextLevel(1);
             else if (this.currentLevel === 1) this.transitionToNextLevel(2);
-            else if (this.currentLevel === 2) document.getElementById('winOverlay').classList.add('active');
+            else if (this.currentLevel === 2) this.triggerWin();
         }
     }
 
