@@ -12,7 +12,7 @@ import { Entity } from './Entity.js';
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
-const PLAYER_RADIUS = 0.30; 
+const PLAYER_RADIUS = 0.30;
 const WALL_MARGIN = 0.18;
 const GRAVITY = -22;
 const JUMP_SPEED = 6.0;
@@ -33,12 +33,10 @@ const SANITY_REGEN_NEAR_LIGHT = 6.5;
 const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
-// ── ENTITY LIGHT FLICKER ──
 const ENTITY_LIGHT_FLASH_RADIUS = 10;
 const ENTITY_LIGHT_TOGGLE_MIN = 0.05;
 const ENTITY_LIGHT_TOGGLE_MAX = 0.22;
 
-// ── FLASHLIGHT ZOOM LEVELS ──
 const FLASH_ANGLE_NORMAL = Math.PI / 4;
 const FLASH_ANGLE_ZOOMED = Math.PI / 14;
 const FLASH_DIST_NORMAL = 26;
@@ -46,14 +44,12 @@ const FLASH_DIST_ZOOMED = 55;
 const FLASH_PENUMBRA_NORMAL = 0.7;
 const FLASH_PENUMBRA_ZOOMED = 0.35;
 const FLASH_INTENSITY_NORMAL = 60;
-const FLASH_INTENSITY_ZOOMED = 135;  // more brightness when focused
+const FLASH_INTENSITY_ZOOMED = 135;
 const FLASH_ZOOM_STEP = 0.12;
 
-// Colour transition: warm tungsten → clean white as you focus
 const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
 const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
-// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
@@ -103,6 +99,22 @@ class SoundManager {
     setVolume(name, v) {
         const s = this.sounds[name];
         if (s) s.volume = Math.max(0, Math.min(1, v));
+    }
+
+    playJumpLand() {
+        const playOne = (delayMs, vol) => {
+            setTimeout(() => {
+                const a = new Audio('JumpLand.mp3');
+                a.volume = vol;
+                a.play().catch(() => {});
+            }, delayMs);
+        };
+        playOne(0,    1.00);  
+        playOne(180,  0.55);   // echo 1
+        playOne(380,  0.32);   // echo 2
+        playOne(610,  0.18);   // echo 3
+        playOne(870,  0.10);   // echo 4
+        playOne(1160, 0.05);   // echo 5
     }
 }
 
@@ -165,7 +177,6 @@ export class Game {
         this.sound = new SoundManager();
         this._bloodageActive = false;
 
-        // ── DEV CONSOLE ──
         this.consoleEl = null;
         this.consoleInput = null;
         this.consoleOpen = false;
@@ -402,7 +413,6 @@ export class Game {
         document.getElementById('winContinue').addEventListener('click', () => location.reload());
     }
 
-    // ── DEV CONSOLE ──
     setupConsole() {
         this.consoleEl = document.getElementById('devConsole');
         this.consoleInput = document.getElementById('consoleInput');
@@ -449,19 +459,12 @@ export class Game {
 
     executeConsoleCommand(cmd) {
         if (!cmd) return;
-        // Format: !Level.N
         const match = cmd.match(/^!Level\.(\d+)$/i);
         if (match) {
             const levelNum = parseInt(match[1], 10);
-            const internal = levelNum - 1; // !Level.1 → internal 0, !Level.2 → internal 1
-            if (internal < 0) {
-                console.log('[console] Invalid level number');
-                return;
-            }
-            if (internal > 1) {
-                console.log(`[console] Level ${levelNum} not implemented yet.`);
-                return;
-            }
+            const internal = levelNum - 1;
+            if (internal < 0) { console.log('[console] Invalid level number'); return; }
+            if (internal > 1) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
             this.closeConsole();
             this.teleportToLevel(internal);
         } else {
@@ -488,13 +491,12 @@ export class Game {
     }
 
     onKeyDown(e) {
-        // Backtick / tilde → toggle console (always handled, even when console is open)
         if (e.key === '`' || e.key === '~') {
             e.preventDefault();
             this.toggleConsole();
             return;
         }
-        if (this.consoleOpen) return;   // ignore gameplay keys while console is open
+        if (this.consoleOpen) return;
 
         if (e.key === ' ') e.preventDefault();
         const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
@@ -547,7 +549,6 @@ export class Game {
         }
     }
 
-    // ── LEVEL ──
     generateLevel(level) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         const result = level === 0
@@ -594,7 +595,6 @@ export class Game {
         this.spawnEntity();
     }
 
-    // ── ENTITY ──
     findEntitySpawnTile(playerTile, exitTile) {
         const size = this.currentSize;
         const data = this.mazeData;
@@ -645,7 +645,6 @@ export class Game {
 
     updateEntityLightFlicker(dt) {
         const entityNear = this.entity && this.entity.isActive && !this.isDead && !this.isTransitioning;
-
         for (const fl of this.flickerLights) {
             if (!fl.light) continue;
             let proximity = 0;
@@ -653,19 +652,12 @@ export class Game {
                 const dx = this.entity.position.x - fl.light.position.x;
                 const dz = this.entity.position.z - fl.light.position.z;
                 const d = Math.hypot(dx, dz);
-                if (d < ENTITY_LIGHT_FLASH_RADIUS) {
-                    proximity = 1 - d / ENTITY_LIGHT_FLASH_RADIUS;
-                }
+                if (d < ENTITY_LIGHT_FLASH_RADIUS) proximity = 1 - d / ENTITY_LIGHT_FLASH_RADIUS;
             }
-
             if (proximity > 0) {
                 fl.entityFlashActive = true;
-                const toggleChance = ENTITY_LIGHT_TOGGLE_MIN +
-                    (ENTITY_LIGHT_TOGGLE_MAX - ENTITY_LIGHT_TOGGLE_MIN) * proximity;
-                if (Math.random() < toggleChance) {
-                    fl.entityFlashOn = !fl.entityFlashOn;
-                }
-
+                const toggleChance = ENTITY_LIGHT_TOGGLE_MIN + (ENTITY_LIGHT_TOGGLE_MAX - ENTITY_LIGHT_TOGGLE_MIN) * proximity;
+                if (Math.random() < toggleChance) fl.entityFlashOn = !fl.entityFlashOn;
                 if (!fl.entityFlashOn) {
                     fl.light.intensity = 0;
                     if (fl.bulb && fl.bulb.material) fl.bulb.material.emissiveIntensity = 0.0;
@@ -723,7 +715,6 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
-
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
     }
@@ -764,7 +755,6 @@ export class Game {
         this.prevTime = performance.now();
     }
 
-    // ── ANIMATE ──
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
@@ -1006,6 +996,8 @@ export class Game {
         this.onGround = (this.cameraGroup.position.y <= this.playerHeight + 0.05 && this.velocity.y <= 0);
         if (this.onGround && !wasOnGround && this.velocity.y <= 0) {
             this.landShake = LAND_SHAKE_AMOUNT * (sprintActive ? 1.6 : (fightOrFlightActive ? 1.3 : 1.0));
+            // ── Jump landing sound with echo ──
+            this.sound.playJumpLand();
         }
         if (this.landShake > 0.0001) {
             this.landShake *= 0.90;
@@ -1182,7 +1174,6 @@ export class Game {
         this.flashlight.distance += (targetDistance - this.flashlight.distance) * 0.18;
         this.flashlight.penumbra += (targetPenumbra - this.flashlight.penumbra) * 0.18;
 
-        // ── Colour shift warm → white as you focus ──
         this._flashColorTarget.copy(FLASH_COLOR_NORMAL).lerp(FLASH_COLOR_ZOOMED, z);
         this.flashlight.color.lerp(this._flashColorTarget, 0.18);
         this.lensBounce.color.lerp(this._flashColorTarget, 0.18);
