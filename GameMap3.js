@@ -1,21 +1,42 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { generateTunnelMaze, bfs, findFurthestCell } from './GameMap1.js';
+import { bfs } from './GameMap1.js';
 
-function generateSewerMaze(size) {
-    const grid = generateTunnelMaze(size);
-    for (let y = 1; y < size - 1; y++) {
-        for (let x = 1; x < size - 1; x++) {
-            if (Math.random() < 0.5 && grid[y][x].top) {
-                grid[y][x].top = false;
-                grid[y - 1][x].bottom = false;
-            }
-            if (Math.random() < 0.5 && grid[y][x].left) {
-                grid[y][x].left = false;
-                grid[y][x - 1].right = false;
-            }
+function generateHallwayMaze(size) {
+    const grid = [];
+    for (let y = 0; y < size; y++) {
+        grid[y] = [];
+        for (let x = 0; x < size; x++) {
+            grid[y][x] = { x, y, top: true, right: true, bottom: true, left: true };
         }
     }
+
+    for (let y = 0; y < size; y += 2) {
+        for (let x = 0; x < size - 1; x++) {
+            grid[y][x].right = false;
+            grid[y][x + 1].left = false;
+        }
+    }
+
+    for (let y = 1; y < size - 1; y += 2) {
+        const numConnectors = 1 + Math.floor(Math.random() * 3);
+        const usedX = new Set();
+        for (let i = 0; i < numConnectors; i++) {
+            let cx;
+            let attempts = 0;
+            do {
+                cx = 1 + Math.floor(Math.random() * (size - 2));
+                attempts++;
+            } while (usedX.has(cx) && attempts < 20);
+            usedX.add(cx);
+
+            grid[y - 1][cx].bottom = false;
+            grid[y][cx].top = false;
+            grid[y][cx].bottom = false;
+            grid[y + 1][cx].top = false;
+        }
+    }
+
     return grid;
 }
 
@@ -158,25 +179,36 @@ function createSewerCeilTexture() {
 
 export function generateMap3(scene, size, wallHeight, tileSize) {
     const half = (size - 1) / 2;
-    const data = generateSewerMaze(size);
+    const data = generateHallwayMaze(size);
 
-    let start = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
-    let exit = findFurthestCell(data, start.x, start.y, size);
-    if (exit.x === start.x && exit.y === start.y) {
-        start = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
-        exit = findFurthestCell(data, start.x, start.y, size);
+    const start = {
+        x: Math.floor(Math.random() * size),
+        y: Math.floor(Math.random() * (size / 2)) * 2
+    };
+
+    const { dist: distFromStart } = bfs(data, start.x, start.y, size);
+    let exit = { x: start.x, y: start.y };
+    let maxDist = -1;
+    for (let y = 0; y < size; y += 2) {
+        for (let x = 0; x < size; x++) {
+            if (distFromStart[y][x] !== Infinity && distFromStart[y][x] > maxDist) {
+                maxDist = distFromStart[y][x];
+                exit = { x, y };
+            }
+        }
     }
+
     const spawnPos = { x: (start.x - half) * tileSize, z: (start.y - half) * tileSize };
     const exitPos = { x: (exit.x - half) * tileSize, z: (exit.y - half) * tileSize };
 
     const { dist } = bfs(data, exit.x, exit.y, size);
-    let maxDist = 0;
+    let maxDistGlobal = 0;
     for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-            if (dist[y][x] !== Infinity && dist[y][x] > maxDist) maxDist = dist[y][x];
+            if (dist[y][x] !== Infinity && dist[y][x] > maxDistGlobal) maxDistGlobal = dist[y][x];
         }
     }
-    if (maxDist === 0) maxDist = 1;
+    if (maxDistGlobal === 0) maxDistGlobal = 1;
 
     const wallTexs = [createSewerWallTexture(), createSewerWallTexture(), createSewerWallTexture()];
     const floorTex = createSewerFloorTexture();
@@ -234,7 +266,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
                 else if (y === size) { cellX = x; cellY = size - 1; }
                 else { cellX = x; cellY = y - 1; }
                 const d = dist[cellY]?.[cellX] ?? 0;
-                const brightness = 0.2 + 0.8 * (1 - d / maxDist);
+                const brightness = 0.2 + 0.8 * (1 - d / maxDistGlobal);
                 const px = (x - half) * tileSize;
                 const pz = (y - half - 0.5) * tileSize;
                 const wall = new THREE.Mesh(hWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -258,7 +290,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
                 else if (x === size) { cellX = size - 1; cellY = y; }
                 else { cellX = x - 1; cellY = y; }
                 const d = dist[cellY]?.[cellX] ?? 0;
-                const brightness = 0.2 + 0.8 * (1 - d / maxDist);
+                const brightness = 0.2 + 0.8 * (1 - d / maxDistGlobal);
                 const px = (x - half - 0.5) * tileSize;
                 const pz = (y - half) * tileSize;
                 const wall = new THREE.Mesh(vWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -287,13 +319,9 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
         waterReflector.position.y = 0.05;
         group.add(waterReflector);
     } catch (err) {
-        console.warn('[Map3] Reflector failed, using plain water plane:', err);
-
+        console.warn('[Map3] Reflector failed, using fallback', err);
         const fallbackMat = new THREE.MeshStandardMaterial({
-            color: 0x1a3a28,
-            roughness: 0.2,
-            metalness: 0.6,
-            side: THREE.DoubleSide
+            color: 0x1a3a28, roughness: 0.2, metalness: 0.6, side: THREE.DoubleSide
         });
         const fallback = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), fallbackMat);
         fallback.rotation.x = -Math.PI / 2;
@@ -315,13 +343,13 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2a3028, roughness: 0.6, metalness: 0.5 });
     const pipeMat2 = new THREE.MeshStandardMaterial({ color: 0x1e2820, roughness: 0.75, metalness: 0.3 });
 
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 18; i++) {
         const x = Math.floor(Math.random() * size);
         const y = Math.floor(Math.random() * size);
-        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.6;
-        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.6;
+        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.7;
+        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.7;
         const pipe = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.15, 0.15, wallHeight * 0.9, 10),
+            new THREE.CylinderGeometry(0.14, 0.14, wallHeight * 0.92, 10),
             Math.random() > 0.5 ? pipeMat : pipeMat2
         );
         pipe.position.set(px, wallHeight / 2, pz);
@@ -330,45 +358,64 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
         group.add(pipe);
     }
 
-    for (let i = 0; i < 8; i++) {
-        const x = Math.floor(Math.random() * (size - 4)) + 2;
-        const y = Math.floor(Math.random() * size);
-        const px = (x - half) * tileSize;
-        const pz = (y - half) * tileSize;
-        const len = 3 + Math.random() * 5;
-        const pipe = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.12, 0.12, len * tileSize, 10),
-            pipeMat
-        );
-        pipe.rotation.z = Math.PI / 2;
-        pipe.position.set(px + (len * tileSize) / 2, wallHeight - 0.3, pz);
-        pipe.castShadow = true;
-        group.add(pipe);
-    }
+    const housingMat = new THREE.MeshStandardMaterial({
+        color: 0x1a221c,
+        roughness: 0.7,
+        metalness: 0.6
+    });
+    const tubeMat = new THREE.MeshStandardMaterial({
+        color: 0x90ff99,
+        emissive: 0x40aa60,
+        emissiveIntensity: 1.15,
+        roughness: 0.4,
+        metalness: 0.3
+    });
 
-    const lightMat = new THREE.MeshStandardMaterial({ color: 0x90ff99, emissive: 0x40aa60, emissiveIntensity: 0.9 });
     const lightSources = [];
     const flickerLights = [];
-    for (let i = 0; i < 16; i++) {
-        const x = Math.floor(Math.random() * size);
-        const y = Math.floor(Math.random() * size);
-        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        const dSpawn = Math.sqrt((px - spawnPos.x) ** 2 + (pz - spawnPos.z) ** 2);
-        if (dSpawn < 3) continue;
-        const lightBulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), lightMat);
-        lightBulb.position.set(px, wallHeight - 0.18, pz);
-        group.add(lightBulb);
-        const light = new THREE.PointLight(0x66ff88, 0.7 + Math.random() * 0.5, 5 + Math.random() * 3);
-        light.position.set(px, wallHeight - 0.22, pz);
-        group.add(light);
-        lightSources.push({ light, position: new THREE.Vector3(px, wallHeight - 0.22, pz) });
-        flickerLights.push({
-            light, bulb: lightBulb,
-            phase: Math.random() * 100,
-            speed: 0.5 + Math.random() * 1.5,
-            baseIntensity: 0.5 + Math.random() * 0.7
-        });
+
+    for (let y = 0; y < size; y += 2) {
+        let cursorX = 1 + Math.floor(Math.random() * 2); 
+        while (cursorX < size - 2) {
+            const remaining = size - 1 - cursorX;
+            if (remaining < 2) break;
+
+            const maxLen = Math.min(remaining, 6);
+            const len = 2 + Math.floor(Math.random() * (maxLen - 1)); 
+
+            const centerCellX = cursorX + (len - 1) / 2;
+            const px = (centerCellX - half) * tileSize;
+            const pz = (y - half) * tileSize;
+            const barLength = len * tileSize * 0.9;
+
+            const housingGeo = new THREE.BoxGeometry(barLength + 0.2, 0.14, 0.3);
+            const housing = new THREE.Mesh(housingGeo, housingMat);
+            housing.position.set(px, wallHeight - 0.09, pz);
+            housing.castShadow = true;
+            group.add(housing);
+
+            const tubeGeo = new THREE.BoxGeometry(barLength, 0.08, 0.22);
+            const tube = new THREE.Mesh(tubeGeo, tubeMat.clone());
+            tube.position.set(px, wallHeight - 0.17, pz);
+            group.add(tube);
+
+            const light = new THREE.PointLight(0x66ff88, 0.85, 7 + len * 1.6, 1.35);
+            light.position.set(px, wallHeight - 0.38, pz);
+            group.add(light);
+
+            lightSources.push({ light, position: new THREE.Vector3(px, wallHeight - 0.38, pz) });
+            flickerLights.push({
+                light,
+                bulb: tube,
+                phase: Math.random() * 100,
+                speed: 0.5 + Math.random() * 1.5,
+                baseIntensity: 0.55 + Math.random() * 0.35
+            });
+
+            cursorX += len;
+
+            if (Math.random() < 0.3) cursorX += 1;
+        }
     }
 
     const exitLight = new THREE.PointLight(0xff6633, 3.5, 9, 1.5);
@@ -378,7 +425,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
 
     return {
         group, data, spawnPos, exitPos, lightSources, flickerLights, wallMeshes,
-        waterReflector: null, 
+        waterReflector: null,
         totalSize
     };
 }
