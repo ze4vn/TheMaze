@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TheMaze5</title>
+    <title>The Maze V</title>
     <link rel="stylesheet" href="Style.css" />
     <script type="importmap">
         {
@@ -14,11 +14,49 @@
         }
     </script>
 </head>
-<body> 
+<body>
+
+    <div id="introSequence">
+        <div id="introWhite"></div>
+        <div id="introBlack"></div>
+        <div id="introText">44devs</div>
+    </div>
+
+    <div id="loadingScreen">
+        <div class="loading-label">
+            <span>Loading</span><span id="loadingDots"></span>
+        </div>
+        <div class="loading-bar-track">
+            <div class="loading-bar-fill" id="loadingBarFill"></div>
+        </div>
+    </div>
 
     <div id="mainMenu">
-        <h1>TheMaze5</h1>
-        <button class="menu-btn" id="btnStartGame">Start Game</button>
+        <div id="menuBgWrap">
+            <img id="menuBg" src="Home.png" alt="" />
+        </div>
+        <h1 id="menuTitle">The Maze V</h1>
+
+        <div id="menuButtons">
+            <button class="menu-btn" id="btnPlay">Play</button>
+            <button class="menu-btn" id="btnSettings">Settings</button>
+            <button class="menu-btn" id="btnCredits">Credits</button>
+            <button class="menu-btn" id="btnExit">Exit</button>
+        </div>
+
+        <button id="logsBtn">Logs</button>
+
+        <div id="logsPanel">
+            <div class="logs-header">
+                <span>Logs</span>
+                <button id="logsClose">×</button>
+            </div>
+            <div class="logs-body">
+                <div class="logs-line">Version &gt; 0.6.0</div>
+                <div class="logs-line">Pre-Version &gt; 0.0.1</div>
+                <div class="logs-quote">Christ Is Lord &amp; All Things Are Possible Through Him.</div>
+            </div>
+        </div>
     </div>
 
     <div id="gameOverlay">
@@ -73,7 +111,7 @@
         <input type="text" id="consoleInput" placeholder="Enter command..." autocomplete="off" spellcheck="false" />
         <div class="console-hint">Try: <b>!Level.1</b> &nbsp;·&nbsp; <b>!Level.2</b> &nbsp;·&nbsp; <b>!Level.3</b> &nbsp;·&nbsp; press <b>`</b> to close</div>
     </div>
-    
+
     <script type="module" src="Script.js"></script>
 </body>
 </html>
