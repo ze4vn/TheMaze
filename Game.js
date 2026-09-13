@@ -34,9 +34,9 @@ const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
 // ── ENTITY LIGHT FLICKER ──
-const ENTITY_LIGHT_FLASH_RADIUS = 10;   // how close entity must be to a light to flicker it
-const ENTITY_LIGHT_TOGGLE_MIN = 0.05;   // min toggle chance per frame
-const ENTITY_LIGHT_TOGGLE_MAX = 0.22;   // max toggle chance per frame (at closest)
+const ENTITY_LIGHT_FLASH_RADIUS = 10;
+const ENTITY_LIGHT_TOGGLE_MIN = 0.05;
+const ENTITY_LIGHT_TOGGLE_MAX = 0.22;
 
 // ── FLASHLIGHT ZOOM LEVELS ──
 const FLASH_ANGLE_NORMAL = Math.PI / 4;
@@ -46,8 +46,12 @@ const FLASH_DIST_ZOOMED = 55;
 const FLASH_PENUMBRA_NORMAL = 0.7;
 const FLASH_PENUMBRA_ZOOMED = 0.35;
 const FLASH_INTENSITY_NORMAL = 60;
-const FLASH_INTENSITY_ZOOMED = 95;
+const FLASH_INTENSITY_ZOOMED = 135;  // more brightness when focused
 const FLASH_ZOOM_STEP = 0.12;
+
+// Colour transition: warm tungsten → clean white as you focus
+const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
+const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
 // ── SOUND MANAGER ──
 class SoundManager {
@@ -144,6 +148,7 @@ export class Game {
         this._flashDir = new THREE.Vector3();
         this.smoothFlashPos = new THREE.Vector3();
         this.smoothFlashTarget = new THREE.Vector3();
+        this._flashColorTarget = new THREE.Color();
         this.isFirstFlash = true;
         this.flickerTimer = 0;
         this.flickerInterval = 15 + Math.random() * 12;
@@ -159,6 +164,11 @@ export class Game {
 
         this.sound = new SoundManager();
         this._bloodageActive = false;
+
+        // ── DEV CONSOLE ──
+        this.consoleEl = null;
+        this.consoleInput = null;
+        this.consoleOpen = false;
 
         this.container = document.getElementById('threeContainer');
         this.screen = new GameScreen();
@@ -181,6 +191,7 @@ export class Game {
         this.setupLights();
         this.setupPostProcessing();
         this.setupInput();
+        this.setupConsole();
         this.generateLevel(0);
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.sanity);
@@ -191,7 +202,7 @@ export class Game {
         this.sound.loop('map1', true);
 
         setTimeout(() => {
-            if (!this.isLocked && !this.stopped) {
+            if (!this.isLocked && !this.stopped && !this.consoleOpen) {
                 try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
             }
         }, 600);
@@ -235,7 +246,7 @@ export class Game {
         this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.18));
 
         const flashlight = new THREE.SpotLight(
-            0xfff2df,
+            FLASH_COLOR_NORMAL.getHex(),
             FLASH_INTENSITY_NORMAL,
             FLASH_DIST_NORMAL,
             FLASH_ANGLE_NORMAL,
@@ -391,7 +402,100 @@ export class Game {
         document.getElementById('winContinue').addEventListener('click', () => location.reload());
     }
 
+    // ── DEV CONSOLE ──
+    setupConsole() {
+        this.consoleEl = document.getElementById('devConsole');
+        this.consoleInput = document.getElementById('consoleInput');
+
+        this.consoleInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') {
+                const cmd = this.consoleInput.value.trim();
+                this.consoleInput.value = '';
+                this.executeConsoleCommand(cmd);
+            } else if (e.key === 'Escape') {
+                this.closeConsole();
+            }
+        });
+    }
+
+    toggleConsole() {
+        if (this.consoleOpen) this.closeConsole();
+        else this.openConsole();
+    }
+
+    openConsole() {
+        if (this.consoleOpen) return;
+        this.consoleOpen = true;
+        this.consoleEl.classList.add('active');
+        if (document.pointerLockElement) document.exitPointerLock();
+        setTimeout(() => {
+            this.consoleInput.focus();
+            this.consoleInput.select();
+        }, 30);
+    }
+
+    closeConsole() {
+        if (!this.consoleOpen) return;
+        this.consoleOpen = false;
+        this.consoleEl.classList.remove('active');
+        this.consoleInput.blur();
+        if (!this.isDead && !this.isTransitioning) {
+            setTimeout(() => {
+                try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
+            }, 80);
+        }
+    }
+
+    executeConsoleCommand(cmd) {
+        if (!cmd) return;
+        // Format: !Level.N
+        const match = cmd.match(/^!Level\.(\d+)$/i);
+        if (match) {
+            const levelNum = parseInt(match[1], 10);
+            const internal = levelNum - 1; // !Level.1 → internal 0, !Level.2 → internal 1
+            if (internal < 0) {
+                console.log('[console] Invalid level number');
+                return;
+            }
+            if (internal > 1) {
+                console.log(`[console] Level ${levelNum} not implemented yet.`);
+                return;
+            }
+            this.closeConsole();
+            this.teleportToLevel(internal);
+        } else {
+            console.log(`[console] Unknown command: ${cmd}`);
+        }
+    }
+
+    teleportToLevel(internalLevel) {
+        this.isDead = false;
+        this.screen.hideDeathOverlay();
+        this.currentLevel = internalLevel;
+        this.generateLevel(internalLevel);
+        this.sanity = 100;
+        this.stamina = MAX_STAMINA;
+        this.gameTime = START_TIME;
+        this.flashlightZoom = 0;
+        this.isSchizo = false;
+        this.schizoTimer = 0;
+        this.velocity.set(0, 0, 0);
+        this.onGround = true;
+        this.screen.updateTimerUI(this.gameTime);
+        this.screen.updateSanityUI(this.sanity);
+        this.screen.updateStaminaUI(this.stamina, this.sanity);
+    }
+
     onKeyDown(e) {
+        // Backtick / tilde → toggle console (always handled, even when console is open)
+        if (e.key === '`' || e.key === '~') {
+            e.preventDefault();
+            this.toggleConsole();
+            return;
+        }
+        if (this.consoleOpen) return;   // ignore gameplay keys while console is open
+
         if (e.key === ' ') e.preventDefault();
         const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
         this.keys[k] = true;
@@ -402,11 +506,12 @@ export class Game {
         }
     }
     onKeyUp(e) {
+        if (this.consoleOpen) return;
         this.keys[e.key.length === 1 ? e.key.toUpperCase() : e.key] = false;
         if (e.key === 'Shift') this.isSprinting = false;
     }
     onMouseMove(e) {
-        if (!this.isLocked || this.isTransitioning) return;
+        if (!this.isLocked || this.isTransitioning || this.consoleOpen) return;
         const sens = 0.0018;
         const dx = e.movementX * sens, dy = e.movementY * sens;
         this.yaw -= dx; this.pitch -= dy;
@@ -423,7 +528,7 @@ export class Game {
 
     onWheel(e) {
         e.preventDefault();
-        if (!this.isLocked || this.isDead || this.isTransitioning) return;
+        if (!this.isLocked || this.isDead || this.isTransitioning || this.consoleOpen) return;
         if (e.deltaY < 0) {
             this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
         } else {
@@ -435,6 +540,7 @@ export class Game {
         this.isLocked = document.pointerLockElement === this.renderer.domElement;
     }
     onClick() {
+        if (this.consoleOpen) return;
         if (this.isLocked) this.flashlightOn = !this.flashlightOn;
         else if (!this.isTransitioning && !this.isDead) {
             try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
@@ -467,7 +573,6 @@ export class Game {
         this.gameTime = START_TIME;
         this.flashlightZoom = 0;
 
-        // ── Clone bulb materials so each can flicker independently ──
         for (const fl of this.flickerLights) {
             if (fl.bulb && fl.bulb.material) {
                 fl.bulb.material = fl.bulb.material.clone();
@@ -538,27 +643,23 @@ export class Game {
         this.entity.onKill = () => this.triggerDeath('entity');
     }
 
-    // ── ENTITY LIGHT FLICKER ──
-    // Nearby roof lights randomly flick on/off while the entity is close.
     updateEntityLightFlicker(dt) {
         const entityNear = this.entity && this.entity.isActive && !this.isDead && !this.isTransitioning;
 
         for (const fl of this.flickerLights) {
             if (!fl.light) continue;
-
             let proximity = 0;
             if (entityNear) {
                 const dx = this.entity.position.x - fl.light.position.x;
                 const dz = this.entity.position.z - fl.light.position.z;
                 const d = Math.hypot(dx, dz);
                 if (d < ENTITY_LIGHT_FLASH_RADIUS) {
-                    proximity = 1 - d / ENTITY_LIGHT_FLASH_RADIUS; // 0..1
+                    proximity = 1 - d / ENTITY_LIGHT_FLASH_RADIUS;
                 }
             }
 
             if (proximity > 0) {
                 fl.entityFlashActive = true;
-                // Higher proximity → more likely to toggle each frame
                 const toggleChance = ENTITY_LIGHT_TOGGLE_MIN +
                     (ENTITY_LIGHT_TOGGLE_MAX - ENTITY_LIGHT_TOGGLE_MIN) * proximity;
                 if (Math.random() < toggleChance) {
@@ -566,13 +667,9 @@ export class Game {
                 }
 
                 if (!fl.entityFlashOn) {
-                    // Flick OFF — hard cut
                     fl.light.intensity = 0;
-                    if (fl.bulb && fl.bulb.material) {
-                        fl.bulb.material.emissiveIntensity = 0.0;
-                    }
+                    if (fl.bulb && fl.bulb.material) fl.bulb.material.emissiveIntensity = 0.0;
                 } else {
-                    // Flick ON — boost a bit when entity close
                     const boost = 1.0 + proximity * 0.9;
                     fl.light.intensity = fl.baseIntensity * boost;
                     if (fl.bulb && fl.bulb.material) {
@@ -581,14 +678,12 @@ export class Game {
                     }
                 }
             } else if (fl.entityFlashActive) {
-                // Entity left — restore to normal
                 fl.entityFlashActive = false;
                 fl.entityFlashOn = true;
             }
         }
     }
 
-    // ── DEATH ──
     triggerDeath(cause) {
         if (this.isDead) return;
         this.isDead = true;
@@ -705,16 +800,13 @@ export class Game {
 
         if (!this.isTransitioning && this.gameRunning && this.isLocked) this.checkTeleporter();
 
-        // Entity update
         if (this.entity && this.entity.isActive && !this.isTransitioning && !this.isDead) {
             this.entity.update(dt, this.cameraGroup.position, this.flashlightOn,
                 this.playerJustJumped, this.sanity, this.gameTime);
         }
 
-        // ── Entity-induced roof light flicker (runs AFTER normal flicker) ──
         this.updateEntityLightFlicker(dt);
 
-        // Entity sound
         if (this.entity && this.entity.isActive && !this.isDead) {
             const dx = this.cameraGroup.position.x - this.entity.position.x;
             const dz = this.cameraGroup.position.z - this.entity.position.z;
@@ -731,7 +823,6 @@ export class Game {
             this.sound.loop('entity', false);
         }
 
-        // Info panel
         const p = document.getElementById('infoPanel');
         if (p.style.display === 'block') {
             const pos = this.cameraGroup.position;
@@ -798,7 +889,6 @@ export class Game {
                 this.realismPass.uniforms.distortion.value = 0.15 + 0.25 * schizoIntensity;
             }
             for (const fl of this.flickerLights) {
-                // Only do the schizo-driven flicker if the entity is NOT flickering this light
                 if (fl.entityFlashActive) continue;
                 const flicker = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(time * 0.025 + fl.phase + this.schizoTimer * 4));
                 fl.light.intensity += (fl.baseIntensity * flicker * 0.5 - fl.light.intensity) * 0.12;
@@ -827,7 +917,6 @@ export class Game {
             }
             this.schizoTimer = 0;
             for (const fl of this.flickerLights) {
-                // Only do normal calm flicker if entity is NOT flickering this light
                 if (fl.entityFlashActive) continue;
                 const flicker = 0.6 + 0.4 * Math.sin(time * 0.001 * fl.speed + fl.phase);
                 const target = fl.baseIntensity * (0.5 + 0.5 * flicker);
@@ -902,7 +991,7 @@ export class Game {
     }
 
     updateMovement(dt) {
-        if (this.isTransitioning || !this.gameRunning || !this.isLocked || this.isDead) return;
+        if (this.isTransitioning || !this.gameRunning || !this.isLocked || this.isDead || this.consoleOpen) return;
 
         const fightOrFlightActive = this.sanity < 30 && !this.isDead;
         const sprintActive = this.isSprinting && this.onGround && this.stamina > 0 && !this.isDead;
@@ -1092,6 +1181,11 @@ export class Game {
         this.flashlight.angle += (targetAngle - this.flashlight.angle) * 0.18;
         this.flashlight.distance += (targetDistance - this.flashlight.distance) * 0.18;
         this.flashlight.penumbra += (targetPenumbra - this.flashlight.penumbra) * 0.18;
+
+        // ── Colour shift warm → white as you focus ──
+        this._flashColorTarget.copy(FLASH_COLOR_NORMAL).lerp(FLASH_COLOR_ZOOMED, z);
+        this.flashlight.color.lerp(this._flashColorTarget, 0.18);
+        this.lensBounce.color.lerp(this._flashColorTarget, 0.18);
 
         const shadowFar = this.flashlight.distance + 2;
         if (Math.abs(this.flashlight.shadow.camera.far - shadowFar) > 0.5) {
