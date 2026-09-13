@@ -547,3 +547,67 @@ html, body {
     letter-spacing: 0.5px; text-align: center;
 }
 #devConsole .console-hint b { color: #111; }
+
+/* ═══════════════════════════════════════
+   CREDITS SCREEN
+   ═══════════════════════════════════════ */
+#creditsScreen {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 9000000;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    overflow: hidden;
+    font-family: 'Times New Roman', Times, serif;
+    color: #fff;
+}
+#creditsScreen.active {
+    display: block;
+}
+#creditsScreen.visible {
+    opacity: 1;
+}
+
+.credits-title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    z-index: 2;
+    font-size: 52px;
+    letter-spacing: 14px;
+    text-shadow: 0 0 40px rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.credits-scroll-area {
+    position: absolute;
+    top: 130px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+}
+
+.credits-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 20px;
+    line-height: 2.2;
+    white-space: pre;
+    color: #dcdcdc;
+    top: 100%;
+    will-change: top;
+}
+.credits-text.scrolling {
+    transition: top 26s linear;
+}
