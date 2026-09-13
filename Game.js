@@ -33,6 +33,58 @@ const SANITY_REGEN_NEAR_LIGHT = 6.5;
 const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
+class SoundManager {
+    constructor() {
+        this.sounds = {
+            map1: new Audio('Map1_Ambiance.mp3'),
+            map2: new Audio('Map2_Ambiance.mp3'),
+            bloodage: new Audio('Bloodage.mp3'),
+            death: new Audio('Death.mp3'),
+            entity: new Audio('Entity.mp3')
+        };
+        this.sounds.map1.loop = true;
+        this.sounds.map2.loop = true;
+        this.sounds.bloodage.loop = true;
+        this.sounds.entity.loop = true;
+        this.sounds.map1.volume = 0.4;
+        this.sounds.map2.volume = 0.4;
+        this.sounds.bloodage.volume = 0.55;
+        this.sounds.death.volume = 0.85;
+        this.sounds.entity.volume = 0.0;
+
+        this._playing = { map1: false, map2: false, bloodage: false, entity: false };
+    }
+    play(name) {
+        const s = this.sounds[name];
+        if (!s) return;
+        try { s.currentTime = 0; s.play().catch(() => {}); } catch (e) {}
+    }
+    loop(name, on) {
+        const s = this.sounds[name];
+        if (!s) return;
+        if (on) {
+            if (s.paused) { s.play().catch(() => {}); }
+            this._playing[name] = true;
+        } else {
+            if (!s.paused) { s.pause(); }
+            this._playing[name] = false;
+        }
+    }
+    stop(name) {
+        const s = this.sounds[name];
+        if (!s) return;
+        try { s.pause(); s.currentTime = 0; } catch (e) {}
+        this._playing[name] = false;
+    }
+    stopAll() {
+        for (const k in this.sounds) this.stop(k);
+    }
+    setVolume(name, v) {
+        const s = this.sounds[name];
+        if (s) s.volume = Math.max(0, Math.min(1, v));
+    }
+}
+
 export class Game {
     constructor() {
         this.scene = null; this.camera = null; this.cameraGroup = null;
@@ -85,7 +137,9 @@ export class Game {
         this.entity = null;
         this.playerJustJumped = false;
         this.playerJumpHeardTimer = 0;
-        this._entityKillInterval = null;
+
+        this.sound = new SoundManager();
+        this._bloodageActive = false;
 
         this.container = document.getElementById('threeContainer');
         this.screen = new GameScreen();
@@ -113,6 +167,8 @@ export class Game {
         this.screen.updateStaminaUI(this.stamina, this.sanity);
         this.prevTime = performance.now();
         this.animate(this.prevTime);
+
+        this.sound.loop('map1', true);
 
         setTimeout(() => {
             if (!this.isLocked && !this.stopped) {
@@ -305,10 +361,6 @@ export class Game {
         document.getElementById('btnMainMenu').addEventListener('click', () => this.goToMainMenu());
         document.getElementById('btnRestartLevels').addEventListener('click', () => this.restartLevels());
         document.getElementById('winContinue').addEventListener('click', () => location.reload());
-
-        document.getElementById('btnEntityRespawn').addEventListener('click', () => this.respawn());
-        document.getElementById('btnEntityMainMenu').addEventListener('click', () => this.goToMainMenu());
-        document.getElementById('btnEntityRestart').addEventListener('click', () => this.restartLevels());
     }
 
     onKeyDown(e) {
@@ -378,10 +430,13 @@ export class Game {
         this.screen.updateStaminaUI(this.stamina, this.sanity);
         if (level === 1) this.screen.showLevelTitle(1, 'The Woodland');
         this.currentLevel = level;
+
+        this.sound.loop('map1', level === 0);
+        this.sound.loop('map2', level === 1);
+
         this.spawnEntity();
     }
 
-    // ── ENTITY (INVISIBLE) ──
     findEntitySpawnTile(playerTile, exitTile) {
         const size = this.currentSize;
         const data = this.mazeData;
@@ -415,6 +470,7 @@ export class Game {
     }
 
     spawnEntity() {
+        if (this.entity) { this.entity.dispose(); this.entity = null; }
         const playerTile = {
             x: Math.round(this.spawnX / tileSize + this.currentHalf),
             y: Math.round(this.spawnZ / tileSize + this.currentHalf)
@@ -424,37 +480,86 @@ export class Game {
             y: Math.round(this.exitZ / tileSize + this.currentHalf)
         };
         const spawnTile = this.findEntitySpawnTile(playerTile, exitTile);
-        this.entity = new Entity(this.mazeData, this.currentSize, this.currentHalf, tileSize, spawnTile);
-        this.entity.onKill = () => this.triggerEntityKill();
+        this.entity = new Entity(this.scene, this.mazeData, this.currentSize,
+            this.currentHalf, tileSize, wallHeight, spawnTile);
+        this.entity.onKill = () => this.triggerDeath('entity');
     }
 
-    triggerEntityKill() {
+    triggerDeath(cause) {
         if (this.isDead) return;
         this.isDead = true;
         this.isLocked = false;
         if (document.pointerLockElement) document.exitPointerLock();
 
-        const overlay = document.getElementById('entityKillOverlay');
-        const img = document.getElementById('entityKillFrame');
-        const buttons = document.getElementById('entityKillButtons');
-        overlay.classList.add('active');
-        buttons.classList.remove('visible');
+        this.sound.loop('map1', false);
+        this.sound.loop('map2', false);
+        this.sound.loop('bloodage', false);
+        this.sound.loop('entity', false);
+        this._bloodageActive = false;
+        this.sound.play('death');
 
-        const frames = ['e1.png', 'e2.png', 'e3.png', 'e4.png'];
-        let frame = 0;
-        img.src = frames[0];
-        if (this._entityKillInterval) clearInterval(this._entityKillInterval);
-        this._entityKillInterval = setInterval(() => {
-            frame = (frame + 1) % frames.length;
-            img.src = frames[frame];
-        }, 500);
-        setTimeout(() => buttons.classList.add('visible'), 2200);
+        this.screen.showDeathOverlay(cause === 'entity');
     }
 
-    hideEntityKillOverlay() {
-        document.getElementById('entityKillOverlay').classList.remove('active');
-        document.getElementById('entityKillButtons').classList.remove('visible');
-        if (this._entityKillInterval) { clearInterval(this._entityKillInterval); this._entityKillInterval = null; }
+    respawn() {
+        if (!this.isDead) return;
+        this.isDead = false;
+        this.screen.hideDeathOverlay();
+        this.sound.stop('death');
+
+        this.sanity = 100;
+        this.stamina = MAX_STAMINA;
+        this.gameTime = START_TIME;
+        this.screen.updateTimerUI(this.gameTime);
+        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
+        this.camera.position.set(0, 0, 0);
+        this.velocity.set(0, 0, 0);
+        this.onGround = true;
+        this.landShake = 0;
+        this.breathPhase = 0;
+        this.isSchizo = false;
+        this.schizoTimer = 0;
+        this.isLocked = true;
+        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
+
+        this.spawnEntity();
+
+        this.sound.loop('map1', this.currentLevel === 0);
+        this.sound.loop('map2', this.currentLevel === 1);
+    }
+
+    restartLevels() {
+        this.screen.hideDeathOverlay();
+        this.sound.stop('death');
+        this.gameTime = START_TIME;
+        this.currentLevel = 0;
+        this.isDead = false;
+        this.generateLevel(0);
+        this.sanity = 100;
+        this.stamina = MAX_STAMINA;
+        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
+        this.velocity.set(0, 0, 0);
+        this.onGround = true;
+        this.isLocked = true;
+        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
+        this.screen.updateTimerUI(this.gameTime);
+        document.getElementById('levelTitleContainer').classList.remove('visible');
+    }
+
+    goToMainMenu() {
+        this.screen.hideDeathOverlay();
+        this.sound.stopAll();
+        document.getElementById('mainMenu').classList.remove('hidden');
+        document.getElementById('winOverlay').classList.remove('active');
+        window.__startMenuMusic && window.__startMenuMusic();
+        this.isDead = false;
+        this.gameRunning = true;
+        this.gameTime = START_TIME;
+        this.sanity = 100;
+        this.stamina = MAX_STAMINA;
+        this.currentLevel = 0;
+        this.generateLevel(0);
+        this.prevTime = performance.now();
     }
 
     animate(time) {
@@ -472,6 +577,17 @@ export class Game {
             if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
         }
 
+        if (!this.isDead) {
+            const shouldPlay = (this.gameTime < 120 || this.sanity < 30);
+            if (shouldPlay && !this._bloodageActive) {
+                this._bloodageActive = true;
+                this.sound.loop('bloodage', true);
+            } else if (!shouldPlay && this._bloodageActive) {
+                this._bloodageActive = false;
+                this.sound.loop('bloodage', false);
+            }
+        }
+
         this.updateSanity(dt);
         this.updateSchizophrenia(time, dt);
         this.updateMazeShifting(time, dt);
@@ -481,13 +597,27 @@ export class Game {
 
         if (!this.isTransitioning && this.gameRunning && this.isLocked) this.checkTeleporter();
 
-        // Entity update (invisible — no rendering)
         if (this.entity && this.entity.isActive && !this.isTransitioning && !this.isDead) {
             this.entity.update(dt, this.cameraGroup.position, this.flashlightOn,
                 this.playerJustJumped, this.sanity, this.gameTime);
         }
 
-        // Info panel
+        if (this.entity && this.entity.isActive && !this.isDead) {
+            const dx = this.cameraGroup.position.x - this.entity.position.x;
+            const dz = this.cameraGroup.position.z - this.entity.position.z;
+            const distE = Math.hypot(dx, dz);
+            const maxHear = 20;
+            if (distE < maxHear) {
+                const vol = Math.pow(1 - distE / maxHear, 1.5) * 0.85;
+                this.sound.setVolume('entity', vol);
+                this.sound.loop('entity', true);
+            } else {
+                this.sound.loop('entity', false);
+            }
+        } else {
+            this.sound.loop('entity', false);
+        }
+
         const p = document.getElementById('infoPanel');
         if (p.style.display === 'block') {
             const pos = this.cameraGroup.position;
@@ -876,67 +1006,4 @@ export class Game {
     }
 
     sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    triggerDeath(cause) {
-        if (this.isDead) return;
-        this.isDead = true;
-        this.isLocked = false;
-        if (document.pointerLockElement) document.exitPointerLock();
-        this.screen.showDeathOverlay(cause);
-    }
-
-    respawn() {
-        if (!this.isDead) return;
-        this.isDead = false;
-        this.hideEntityKillOverlay();
-        this.screen.hideDeathOverlay();
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
-        this.gameTime = START_TIME;
-        this.screen.updateTimerUI(this.gameTime);
-        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
-        this.camera.position.set(0, 0, 0);
-        this.velocity.set(0, 0, 0);
-        this.onGround = true;
-        this.landShake = 0;
-        this.breathPhase = 0;
-        this.isSchizo = false;
-        this.schizoTimer = 0;
-        this.isLocked = true;
-        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
-        this.spawnEntity();
-    }
-
-    restartLevels() {
-        this.hideEntityKillOverlay();
-        this.screen.hideDeathOverlay();
-        this.gameTime = START_TIME;
-        this.currentLevel = 0;
-        this.isDead = false;
-        this.generateLevel(0);
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
-        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
-        this.velocity.set(0, 0, 0);
-        this.onGround = true;
-        this.isLocked = true;
-        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
-        this.screen.updateTimerUI(this.gameTime);
-        document.getElementById('levelTitleContainer').classList.remove('visible');
-    }
-
-    goToMainMenu() {
-        this.hideEntityKillOverlay();
-        this.screen.hideDeathOverlay();
-        document.getElementById('mainMenu').classList.remove('hidden');
-        document.getElementById('winOverlay').classList.remove('active');
-        this.isDead = false;
-        this.gameRunning = true;
-        this.gameTime = START_TIME;
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
-        this.currentLevel = 0;
-        this.generateLevel(0);
-        this.prevTime = performance.now();
-    }
 }
