@@ -18,7 +18,7 @@ export class Entity {
         this.speed = 3.2;
         this.killRadius = 0.95;
         this.visionRange = 22;
-        this.hearingRange = 999;  
+        this.hearingRange = 999;
 
         this.frames = [];
         this.frameIndex = 0;
@@ -60,8 +60,8 @@ export class Entity {
         this.tiltCurrent = 0;
 
         this.stepTimer = 0;
-        this.stepInterval = 0.35;  
-        this.stepDistance = 1.3; 
+        this.stepInterval = 0.35;
+        this.stepDistance = 1.3;
 
         this.currentPath = [];
         this.pathIndex = 0;
@@ -71,6 +71,9 @@ export class Entity {
         this.lastKnownPlayerTile = null;
         this.lastSenseTime = -999;
         this.giveUpTime = 3.5;
+
+        this.wanderTimer = 0;
+        this.wanderInterval = 2.5 + Math.random() * 2.5;
 
         this.isActive = true;
         this.onKill = null;
@@ -144,6 +147,23 @@ export class Entity {
         return path;
     }
 
+    pickWanderTile(fromTile) {
+        let bestTile = null;
+        for (let attempts = 0; attempts < 40; attempts++) {
+            const rx = Math.floor(Math.random() * this.size);
+            const ry = Math.floor(Math.random() * this.size);
+            const d = Math.abs(rx - fromTile.x) + Math.abs(ry - fromTile.y);
+            if (d >= 3 && d <= 8) { bestTile = { x: rx, y: ry }; break; }
+        }
+        if (!bestTile) {
+            bestTile = {
+                x: Math.floor(Math.random() * this.size),
+                y: Math.floor(Math.random() * this.size)
+            };
+        }
+        return bestTile;
+    }
+
     doStep() {
         let remaining = this.stepDistance;
         while (remaining > 0 && this.currentPath.length > 0 && this.pathIndex < this.currentPath.length) {
@@ -195,7 +215,6 @@ export class Entity {
         this.tiltCurrent += (this.tiltTarget - this.tiltCurrent) * 0.3;
         this.spriteMat.rotation = this.tiltCurrent;
 
-        // Senses
         const dx = playerPos.x - this.position.x;
         const dz = playerPos.z - this.position.z;
         const distToPlayer = Math.hypot(dx, dz);
@@ -204,12 +223,11 @@ export class Entity {
         let sensed = false;
         if (sanityBelowF) sensed = true;
         else if (playerFlashlightOn && distToPlayer < this.visionRange && this.hasLineOfSight(playerPos)) sensed = true;
-        else if (playerJustJumped) sensed = true;   // ALWAYS hears jumps
+        else if (playerJustJumped) sensed = true;
 
         if (sensed) {
             const playerTile = this.worldToTile(playerPos.x, playerPos.z);
             if (playerJustJumped && !playerFlashlightOn && !sanityBelowF) {
-                // Jump location with slight noise
                 const ox = Math.floor((Math.random() - 0.5) * 3);
                 const oy = Math.floor((Math.random() - 0.5) * 3);
                 this.lastKnownPlayerTile = {
@@ -220,9 +238,10 @@ export class Entity {
                 this.lastKnownPlayerTile = playerTile;
             }
             this.lastSenseTime = gameTime;
+
+            this.wanderTimer = 0;
         }
 
-        // Give up if reached last known spot
         if (this.lastKnownPlayerTile && !sanityBelowF) {
             const et = this.worldToTile(this.position.x, this.position.z);
             const reached = (et.x === this.lastKnownPlayerTile.x && et.y === this.lastKnownPlayerTile.y);
@@ -230,26 +249,39 @@ export class Entity {
                 this.lastKnownPlayerTile = null;
                 this.currentPath = [];
                 this.pathIndex = 0;
+                this.wanderTimer = 0;
             }
         }
 
-        // Repath
-        this.repathTimer += dt;
-        if (this.repathTimer >= this.repathInterval && this.lastKnownPlayerTile) {
-            this.repathTimer = 0;
-            const et = this.worldToTile(this.position.x, this.position.z);
-            this.currentPath = this.findPath(et, this.lastKnownPlayerTile);
-            this.pathIndex = 0;
+        if (this.lastKnownPlayerTile) {
+
+            this.repathTimer += dt;
+            if (this.repathTimer >= this.repathInterval) {
+                this.repathTimer = 0;
+                const et = this.worldToTile(this.position.x, this.position.z);
+                this.currentPath = this.findPath(et, this.lastKnownPlayerTile);
+                this.pathIndex = 0;
+            }
+        } else {
+
+            this.wanderTimer += dt;
+            const reachedEnd = this.currentPath.length === 0 || this.pathIndex >= this.currentPath.length;
+            if (this.wanderTimer >= this.wanderInterval || reachedEnd) {
+                this.wanderTimer = 0;
+                this.wanderInterval = 2.5 + Math.random() * 2.5;
+                const et = this.worldToTile(this.position.x, this.position.z);
+                const wanderTile = this.pickWanderTile(et);
+                this.currentPath = this.findPath(et, wanderTile);
+                this.pathIndex = 0;
+            }
         }
 
-        // ── Teleport-stutter movement: hold still, then lurch ──
         this.stepTimer += dt;
         if (this.stepTimer >= this.stepInterval) {
             this.stepTimer -= this.stepInterval;
             this.doStep();
         }
 
-        // Kill
         if (distToPlayer < this.killRadius && this.onKill) this.onKill();
     }
 
