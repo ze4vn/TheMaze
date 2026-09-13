@@ -2,7 +2,7 @@
 html, body {
     width: 100%; height: 100%; overflow: hidden;
     background: #000; font-family: 'Times New Roman', Times, serif; cursor: default;
-} 
+}
 
 #mainMenu {
     position: fixed; inset: 0; z-index: 1000000;
@@ -211,26 +211,10 @@ html, body {
 }
 #deathContent.show { opacity: 1; }
 
-#deathEntityWrap {
-    display: none; margin-bottom: 10px;
-}
-#deathEntityWrap.show { display: block; }
-#deathEntityImg {
-    width: 34vh; height: 34vh; object-fit: contain;
-    image-rendering: pixelated;
-    filter: drop-shadow(0 0 40px rgba(180,0,0,0.75));
-    animation: deathEntityPulse 0.6s ease-in-out infinite alternate;
-}
-@keyframes deathEntityPulse {
-    from { transform: scale(0.9); }
-    to { transform: scale(1.08); }
-}
-
 #deathTitle {
     font-size: 96px; color: #dcdcdc; letter-spacing: 10px;
     text-shadow: 0 0 60px rgba(255,0,0,0.35), 0 0 120px rgba(120,0,0,0.35);
-    opacity: 0;
-    font-weight: normal;
+    opacity: 0; font-weight: normal;
 }
 #deathTitle.anim {
     animation: deathTitleAnim 1.6s cubic-bezier(.2,.8,.3,1) forwards;
