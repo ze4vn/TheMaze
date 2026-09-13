@@ -7,6 +7,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GameScreen } from './GameScreen.js';
 import { generateMap1 } from './GameMap1.js';
 import { generateMap2 } from './GameMap2.js';
+import { generateMap3 } from './GameMap3.js';
 import { Entity } from './Entity.js';
 
 const MAZE_SIZE = 16;
@@ -50,26 +51,30 @@ const FLASH_ZOOM_STEP = 0.12;
 const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
 const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
+// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
             map1: new Audio('Map1_Ambiance.mp3'),
             map2: new Audio('Map2_Ambiance.mp3'),
+            map3: new Audio('Map3_Ambiance.mp3'),
             bloodage: new Audio('Bloodage.mp3'),
             death: new Audio('Death.mp3'),
             entity: new Audio('Entity.mp3')
         };
         this.sounds.map1.loop = true;
         this.sounds.map2.loop = true;
+        this.sounds.map3.loop = true;
         this.sounds.bloodage.loop = true;
         this.sounds.entity.loop = true;
         this.sounds.map1.volume = 0.4;
         this.sounds.map2.volume = 0.4;
+        this.sounds.map3.volume = 0.4;
         this.sounds.bloodage.volume = 0.55;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
 
-        this._playing = { map1: false, map2: false, bloodage: false, entity: false };
+        this._playing = { map1: false, map2: false, map3: false, bloodage: false, entity: false };
     }
     play(name) {
         const s = this.sounds[name];
@@ -100,7 +105,6 @@ class SoundManager {
         const s = this.sounds[name];
         if (s) s.volume = Math.max(0, Math.min(1, v));
     }
-
     playJumpLand() {
         const playOne = (delayMs, vol) => {
             setTimeout(() => {
@@ -109,12 +113,12 @@ class SoundManager {
                 a.play().catch(() => {});
             }, delayMs);
         };
-        playOne(0,    1.00);  
-        playOne(180,  0.55);   // echo 1
-        playOne(380,  0.32);   // echo 2
-        playOne(610,  0.18);   // echo 3
-        playOne(870,  0.10);   // echo 4
-        playOne(1160, 0.05);   // echo 5
+        playOne(0,    1.00);
+        playOne(180,  0.55);
+        playOne(380,  0.32);
+        playOne(610,  0.18);
+        playOne(870,  0.10);
+        playOne(1160, 0.05);
     }
 }
 
@@ -169,6 +173,9 @@ export class Game {
         this.FLICKER_DURATION = 0.5;
 
         this.flashlightZoom = 0;
+
+        this.waterReflector = null;
+        this.totalSize = 0;
 
         this.entity = null;
         this.playerJustJumped = false;
@@ -464,7 +471,7 @@ export class Game {
             const levelNum = parseInt(match[1], 10);
             const internal = levelNum - 1;
             if (internal < 0) { console.log('[console] Invalid level number'); return; }
-            if (internal > 1) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
+            if (internal > 2) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
             this.closeConsole();
             this.teleportToLevel(internal);
         } else {
@@ -551,9 +558,18 @@ export class Game {
 
     generateLevel(level) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
-        const result = level === 0
-            ? generateMap1(this.scene, MAZE_SIZE, wallHeight, tileSize)
-            : generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        this.waterReflector = null;
+        this.totalSize = 0;
+
+        let result;
+        if (level === 0) {
+            result = generateMap1(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        } else if (level === 1) {
+            result = generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        } else {
+            result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        }
+
         this.mazeGroup = result.group;
         this.mazeData = result.data;
         this.spawnX = result.spawnPos.x; this.spawnZ = result.spawnPos.z;
@@ -568,6 +584,8 @@ export class Game {
         this.lightSources = result.lightSources || [];
         this.flickerLights = result.flickerLights || [];
         this.wallMeshes = result.wallMeshes || [];
+        this.waterReflector = result.waterReflector || null;
+        this.totalSize = result.totalSize || (MAZE_SIZE * tileSize);
         this.sanity = 100;
         this.isSchizo = false;
         this.wallShiftSeed = Math.random() * 1000;
@@ -586,11 +604,15 @@ export class Game {
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.sanity);
         this.screen.updateStaminaUI(this.stamina, this.sanity);
+
         if (level === 1) this.screen.showLevelTitle(1, 'The Woodland');
+        else if (level === 2) this.screen.showLevelTitle(2, 'The Sewers');
+
         this.currentLevel = level;
 
         this.sound.loop('map1', level === 0);
         this.sound.loop('map2', level === 1);
+        this.sound.loop('map3', level === 2);
 
         this.spawnEntity();
     }
@@ -684,6 +706,7 @@ export class Game {
 
         this.sound.loop('map1', false);
         this.sound.loop('map2', false);
+        this.sound.loop('map3', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
         this._bloodageActive = false;
@@ -715,8 +738,10 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
+
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
+        this.sound.loop('map3', this.currentLevel === 2);
     }
 
     restartLevels() {
@@ -811,6 +836,17 @@ export class Game {
             }
         } else {
             this.sound.loop('entity', false);
+        }
+
+        // ── Water ripple update (Level 3) ──
+        if (this.waterReflector) {
+            this.waterReflector.material.uniforms.time.value = time * 0.001;
+            const px = this.cameraGroup.position.x;
+            const pz = this.cameraGroup.position.z;
+            const totalSize = this.totalSize;
+            const u = px / totalSize + 0.5;
+            const v = 0.5 - pz / totalSize;
+            this.waterReflector.material.uniforms.playerPos.value.set(u, v);
         }
 
         const p = document.getElementById('infoPanel');
@@ -996,7 +1032,6 @@ export class Game {
         this.onGround = (this.cameraGroup.position.y <= this.playerHeight + 0.05 && this.velocity.y <= 0);
         if (this.onGround && !wasOnGround && this.velocity.y <= 0) {
             this.landShake = LAND_SHAKE_AMOUNT * (sprintActive ? 1.6 : (fightOrFlightActive ? 1.3 : 1.0));
-            // ── Jump landing sound with echo ──
             this.sound.playJumpLand();
         }
         if (this.landShake > 0.0001) {
@@ -1210,20 +1245,22 @@ export class Game {
         const px = this.cameraGroup.position.x, pz = this.cameraGroup.position.z;
         const dist = Math.sqrt((px - this.teleporterPos.x) ** 2 + (pz - this.teleporterPos.z) ** 2);
         if (dist < 1.0) {
-            if (this.currentLevel === 0) this.transitionToNextLevel();
-            else if (this.currentLevel === 1) document.getElementById('winOverlay').classList.add('active');
+            if (this.currentLevel === 0) this.transitionToNextLevel(1);
+            else if (this.currentLevel === 1) this.transitionToNextLevel(2);
+            else if (this.currentLevel === 2) document.getElementById('winOverlay').classList.add('active');
         }
     }
 
-    async transitionToNextLevel() {
+    async transitionToNextLevel(nextLevel) {
         this.isTransitioning = true;
         const white = document.getElementById('whiteFlash');
         white.style.opacity = '1';
         await this.sleep(250);
         white.style.opacity = '0';
-        this.currentLevel = 1;
-        this.generateLevel(1);
-        setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
+        this.currentLevel = nextLevel;
+        this.generateLevel(nextLevel);
+        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
+        else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'The Sewers'), 300);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
         if (this.realismPass) {
