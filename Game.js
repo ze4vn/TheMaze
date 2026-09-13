@@ -9,49 +9,17 @@ import { generateMap1 } from './GameMap1.js';
 import { generateMap2 } from './GameMap2.js';
 import { generateMap3 } from './GameMap3.js';
 import { Entity } from './Entity.js';
+import { GamePlayer } from './GamePlayer.js';
 
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
-const PLAYER_RADIUS = 0.30;
-const WALL_MARGIN = 0.18;
-const GRAVITY = -22;
-const JUMP_SPEED = 6.0;
-const BASE_MOVE_SPEED = 5.0;
-const SPRINT_MOVE_SPEED = 9.0;
-const FIGHT_FLIGHT_MOVE_SPEED = 6.8;
-const FIGHT_FLIGHT_SPRINT_SPEED = 11.0;
-const AIR_ACCEL = 8.0;
-const MAX_SPEED = 25;
-const LAND_SHAKE_AMOUNT = 0.12;
-const MAX_STAMINA = 160;
-const STAMINA_DRAIN = 18;
-const STAMINA_REGEN = 15;
-const STAMINA_REGEN_WALK = 22;
-const SANITY_DRAIN_FLASHLIGHT = 0.75;
-const SANITY_DRAIN_DARKNESS = 0.18;
-const SANITY_REGEN_NEAR_LIGHT = 6.5;
-const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
 const ENTITY_LIGHT_FLASH_RADIUS = 10;
 const ENTITY_LIGHT_TOGGLE_MIN = 0.05;
 const ENTITY_LIGHT_TOGGLE_MAX = 0.22;
 
-const FLASH_ANGLE_NORMAL = Math.PI / 4;
-const FLASH_ANGLE_ZOOMED = Math.PI / 14;
-const FLASH_DIST_NORMAL = 26;
-const FLASH_DIST_ZOOMED = 55;
-const FLASH_PENUMBRA_NORMAL = 0.7;
-const FLASH_PENUMBRA_ZOOMED = 0.35;
-const FLASH_INTENSITY_NORMAL = 60;
-const FLASH_INTENSITY_ZOOMED = 135;
-const FLASH_ZOOM_STEP = 0.12;
-
-const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
-const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
-
-// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
@@ -73,7 +41,6 @@ class SoundManager {
         this.sounds.bloodage.volume = 0.55;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
-        this._playing = { map1: false, map2: false, map3: false, bloodage: false, entity: false };
     }
     play(name) {
         const s = this.sounds[name];
@@ -84,22 +51,17 @@ class SoundManager {
         const s = this.sounds[name];
         if (!s) return;
         if (on) {
-            if (s.paused) { s.play().catch(() => {}); }
-            this._playing[name] = true;
+            if (s.paused) s.play().catch(() => {});
         } else {
-            if (!s.paused) { s.pause(); }
-            this._playing[name] = false;
+            if (!s.paused) s.pause();
         }
     }
     stop(name) {
         const s = this.sounds[name];
         if (!s) return;
         try { s.pause(); s.currentTime = 0; } catch (e) {}
-        this._playing[name] = false;
     }
-    stopAll() {
-        for (const k in this.sounds) this.stop(k);
-    }
+    stopAll() { for (const k in this.sounds) this.stop(k); }
     setVolume(name, v) {
         const s = this.sounds[name];
         if (s) s.volume = Math.max(0, Math.min(1, v));
@@ -123,64 +85,33 @@ class SoundManager {
 
 export class Game {
     constructor() {
-        this.scene = null; this.camera = null; this.cameraGroup = null;
-        this.renderer = null; this.composer = null; this.realismPass = null;
+        this.scene = null;
+        this.renderer = null;
+        this.composer = null;
+        this.realismPass = null;
 
         this.currentLevel = 0;
-        this.mazeGroup = null; this.mazeData = null;
+        this.mazeGroup = null;
+        this.mazeData = null;
         this.exitX = 0; this.exitZ = 0;
         this.spawnX = 0; this.spawnZ = 0;
         this.teleporterPos = { x: 0, z: 0 };
         this.gameRunning = true;
         this.isTransitioning = false;
-        this.playerHeight = 1.55;
         this.currentSize = MAZE_SIZE;
         this.currentHalf = (MAZE_SIZE - 1) / 2;
 
-        this.stamina = MAX_STAMINA;
-        this.isSprinting = false;
-        this.sanity = 100;
         this.gameTime = START_TIME;
-        this.isDead = false;
-        this.gameWon = false;
-        this.invincible = false;
 
-        this.keys = {};
         this.isLocked = false;
-        this.yaw = 0; this.pitch = 0;
-        this.velocity = new THREE.Vector3(0, 0, 0);
-        this.onGround = false;
-        this.landShake = 0;
-        this.bobTime = 0; this.breathPhase = 0;
-        this.smoothMoveX = 0; this.smoothMoveY = 0;
-        this.headTilt = 0; this.smoothHeadTilt = 0;
-        this.mouseSpeed = 0;
-        this.isSchizo = false; this.schizoTimer = 0;
-        this.flashlightOffTime = 0; this.nearLightSource = false;
         this.wallMeshes = [];
         this.wallShiftSeed = 0;
-        this.lightSources = []; this.flickerLights = [];
-        this.flashlightOn = true;
-        this.flashlight = null; this.lensBounce = null;
-        this._flashDir = new THREE.Vector3();
-        this.smoothFlashPos = new THREE.Vector3();
-        this.smoothFlashTarget = new THREE.Vector3();
-        this._flashColorTarget = new THREE.Color();
-        this.isFirstFlash = true;
-        this.flickerTimer = 0;
-        this.flickerInterval = 15 + Math.random() * 12;
-        this.isFlickering = false;
-        this.flickerPhase = 0;
-        this.FLICKER_DURATION = 0.5;
-
-        this.flashlightZoom = 0;
-
+        this.lightSources = [];
+        this.flickerLights = [];
         this.waterReflector = null;
         this.totalSize = 0;
 
         this.entity = null;
-        this.playerJustJumped = false;
-        this.playerJumpHeardTimer = 0;
 
         this.sound = new SoundManager();
         this._bloodageActive = false;
@@ -195,6 +126,11 @@ export class Game {
         this.prevTime = 0;
         this.animationId = null;
 
+        this.player = new GamePlayer(this);
+
+        this.camera = null;
+        this.cameraGroup = null;
+
         this.animate = this.animate.bind(this);
         this.resize = this.resize.bind(this);
         this.onKeyDown = this.onKeyDown.bind(this);
@@ -207,14 +143,21 @@ export class Game {
 
     init() {
         this.setupThree();
-        this.setupLights();
         this.setupPostProcessing();
         this.setupInput();
         this.setupConsole();
+
+        this.player.setup(this.scene, this.cameraAspect());
+
+        this.camera = this.player.camera;
+        this.cameraGroup = this.player.cameraGroup;
+
         this.generateLevel(0);
+
         this.screen.updateTimerUI(this.gameTime);
-        this.screen.updateSanityUI(this.sanity);
-        this.screen.updateStaminaUI(this.stamina, this.sanity);
+        this.screen.updateSanityUI(this.player.sanity);
+        this.screen.updateStaminaUI(this.player.stamina, this.player.sanity);
+
         this.prevTime = performance.now();
         this.animate(this.prevTime);
         this.sound.loop('map1', true);
@@ -226,18 +169,17 @@ export class Game {
         }, 600);
     }
 
+    cameraAspect() {
+        return this.container.clientWidth / this.container.clientHeight;
+    }
+
     setupThree() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x040406);
         this.scene.fog = new THREE.FogExp2(0x040406, 0.012);
 
-        this.cameraGroup = new THREE.Object3D();
-        this.scene.add(this.cameraGroup);
-        this.camera = new THREE.PerspectiveCamera(84, this.container.clientWidth / this.container.clientHeight, 0.08, 100);
-        this.camera.position.set(0, 0, 0);
-        this.camera.rotation.order = 'YXZ';
-        this.cameraGroup.add(this.camera);
-        this.cameraGroup.position.set(0, this.playerHeight, 0);
+        this.scene.add(new THREE.AmbientLight(0x0a0a0e, 0.22));
+        this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.15));
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
@@ -248,64 +190,23 @@ export class Game {
         this.renderer.toneMappingExposure = 1.0;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.container.appendChild(this.renderer.domElement);
+
         window.addEventListener('resize', this.resize);
     }
 
     resize() {
         const w = this.container.clientWidth, h = this.container.clientHeight;
-        this.camera.aspect = w / h;
-        this.camera.updateProjectionMatrix();
+        if (this.player && this.player.camera) {
+            this.player.camera.aspect = w / h;
+            this.player.camera.updateProjectionMatrix();
+        }
         this.renderer.setSize(w, h);
         this.composer.setSize(w, h);
     }
 
-    setupLights() {
-        this.scene.add(new THREE.AmbientLight(0x0a0a0e, 0.22));
-        this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.15));
-
-        const flashlight = new THREE.SpotLight(
-            FLASH_COLOR_NORMAL.getHex(),
-            FLASH_INTENSITY_NORMAL,
-            FLASH_DIST_NORMAL,
-            FLASH_ANGLE_NORMAL,
-            FLASH_PENUMBRA_NORMAL,
-            1.6
-        );
-        flashlight.castShadow = true;
-        flashlight.shadow.mapSize.set(2048, 2048);
-        flashlight.shadow.camera.near = 0.1;
-        flashlight.shadow.camera.far = FLASH_DIST_NORMAL + 2;
-        flashlight.shadow.bias = -0.0012;
-        flashlight.shadow.normalBias = 0.025;
-        flashlight.map = this.createFlashlightTexture();
-        this.scene.add(flashlight);
-        this.scene.add(flashlight.target);
-        this.flashlight = flashlight;
-
-        this.lensBounce = new THREE.PointLight(0xffdca8, 0.6, 2.8, 2);
-        this.scene.add(this.lensBounce);
-    }
-
-    createFlashlightTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        grad.addColorStop(0.0, 'rgba(255,255,245,1.0)');
-        grad.addColorStop(0.3, 'rgba(255,248,235,1.0)');
-        grad.addColorStop(0.6, 'rgba(255,235,205,1.0)');
-        grad.addColorStop(0.85, 'rgba(255,215,160,1.0)');
-        grad.addColorStop(1.0, 'rgba(255,200,140,0.8)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 256, 256);
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        return tex;
-    }
-
     setupPostProcessing() {
         const composer = new EffectComposer(this.renderer);
-        composer.addPass(new RenderPass(this.scene, this.camera));
+        composer.addPass(new RenderPass(this.scene, this.player.camera));
 
         const realismShader = {
             uniforms: {
@@ -450,7 +351,7 @@ export class Game {
         this.consoleOpen = false;
         this.consoleEl.classList.remove('active');
         this.consoleInput.blur();
-        if (!this.isDead && !this.isTransitioning && !this.gameWon) {
+        if (!this.player.isDead && !this.isTransitioning && !this.player.gameWon) {
             setTimeout(() => { try { this.renderer.domElement.requestPointerLock(); } catch (e) {} }, 80);
         }
     }
@@ -471,77 +372,51 @@ export class Game {
     }
 
     teleportToLevel(internalLevel) {
-        this.isDead = false;
-        this.gameWon = false;
-        this.invincible = false;
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
         this.currentLevel = internalLevel;
         this.generateLevel(internalLevel);
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
         this.gameTime = START_TIME;
-        this.flashlightZoom = 0;
-        this.isSchizo = false;
-        this.schizoTimer = 0;
-        this.velocity.set(0, 0, 0);
-        this.onGround = true;
         this.screen.updateTimerUI(this.gameTime);
-        this.screen.updateSanityUI(this.sanity);
-        this.screen.updateStaminaUI(this.stamina, this.sanity);
     }
 
     onKeyDown(e) {
         if (e.key === '`' || e.key === '~') { e.preventDefault(); this.toggleConsole(); return; }
         if (this.consoleOpen) return;
-        if (e.key === ' ') e.preventDefault();
-        const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-        this.keys[k] = true;
-        if (e.key === 'Shift') this.isSprinting = true;
+        this.player.onKeyDown(e, this.consoleOpen);
         if (e.key === 'i' || e.key === 'I') {
             const p = document.getElementById('infoPanel');
             p.style.display = p.style.display === 'block' ? 'none' : 'block';
         }
     }
+
     onKeyUp(e) {
         if (this.consoleOpen) return;
-        this.keys[e.key.length === 1 ? e.key.toUpperCase() : e.key] = false;
-        if (e.key === 'Shift') this.isSprinting = false;
+        this.player.onKeyUp(e, this.consoleOpen);
     }
+
     onMouseMove(e) {
-        if (!this.isLocked || this.isTransitioning || this.consoleOpen) return;
-        const sens = 0.0018;
-        const dx = e.movementX * sens, dy = e.movementY * sens;
-        this.yaw -= dx; this.pitch -= dy;
-        this.pitch = Math.max(-Math.PI / 2 + 0.08, Math.min(Math.PI / 2 - 0.08, this.pitch));
-        this.camera.rotation.y = this.yaw;
-        this.camera.rotation.x = this.pitch;
-        this.smoothMoveX += e.movementX * 0.0008;
-        this.smoothMoveY += e.movementY * 0.0008;
-        this.smoothMoveX *= 0.92; this.smoothMoveY *= 0.92;
-        this.headTilt = -dx * 2.5;
-        this.smoothHeadTilt += (this.headTilt - this.smoothHeadTilt) * 0.08;
-        this.mouseSpeed = Math.sqrt(e.movementX * e.movementX + e.movementY * e.movementY) * 0.02;
+        this.player.handleMouseMove(e, this.isLocked, this.isTransitioning, this.consoleOpen);
     }
+
     onWheel(e) {
         e.preventDefault();
-        if (!this.isLocked || this.isDead || this.isTransitioning || this.consoleOpen) return;
-        if (e.deltaY < 0) this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
-        else this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
+        this.player.handleWheel(e.deltaY, this.isLocked, this.player.isDead, this.isTransitioning, this.consoleOpen);
     }
+
     onPointerLockChange() {
         this.isLocked = document.pointerLockElement === this.renderer.domElement;
     }
+
     onClick() {
         if (this.consoleOpen) return;
-        if (this.gameWon) return;
-        if (this.isLocked) this.flashlightOn = !this.flashlightOn;
-        else if (!this.isTransitioning && !this.isDead) {
+        if (this.player.gameWon) return;
+        if (this.isLocked) this.player.toggleFlashlight();
+        else if (!this.isTransitioning && !this.player.isDead) {
             try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
         }
     }
 
-    // ── LEVEL GENERATION ──
     generateLevel(level) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
@@ -554,25 +429,18 @@ export class Game {
 
         this.mazeGroup = result.group;
         this.mazeData = result.data;
-        this.spawnX = result.spawnPos.x; this.spawnZ = result.spawnPos.z;
-        this.exitX = result.exitPos.x; this.exitZ = result.exitPos.z;
+        this.spawnX = result.spawnPos.x;
+        this.spawnZ = result.spawnPos.z;
+        this.exitX = result.exitPos.x;
+        this.exitZ = result.exitPos.z;
         this.teleporterPos = { x: this.exitX, z: this.exitZ };
-        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
-        this.camera.position.set(0, 0, 0);
-        this.velocity.set(0, 0, 0);
-        this.onGround = true; this.landShake = 0; this.breathPhase = 0;
-        this.stamina = MAX_STAMINA;
-        this.isSprinting = false;
         this.lightSources = result.lightSources || [];
         this.flickerLights = result.flickerLights || [];
         this.wallMeshes = result.wallMeshes || [];
         this.waterReflector = result.waterReflector || null;
         this.totalSize = result.totalSize || (MAZE_SIZE * tileSize);
-        this.sanity = 100;
-        this.isSchizo = false;
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
-        this.flashlightZoom = 0;
 
         for (const fl of this.flickerLights) {
             if (fl.bulb && fl.bulb.material) {
@@ -583,9 +451,11 @@ export class Game {
             fl.entityFlashActive = false;
         }
 
+        this.player.spawnAt(this.spawnX, this.spawnZ);
+
         this.screen.updateTimerUI(this.gameTime);
-        this.screen.updateSanityUI(this.sanity);
-        this.screen.updateStaminaUI(this.stamina, this.sanity);
+        this.screen.updateSanityUI(this.player.sanity);
+        this.screen.updateStaminaUI(this.player.stamina, this.player.sanity);
 
         if (level === 1) this.screen.showLevelTitle(1, 'The Woodlands');
         else if (level === 2) this.screen.showLevelTitle(2, 'Null Sewers');
@@ -648,7 +518,7 @@ export class Game {
     }
 
     updateEntityLightFlicker(dt) {
-        const entityNear = this.entity && this.entity.isActive && !this.isDead && !this.isTransitioning;
+        const entityNear = this.entity && this.entity.isActive && !this.player.isDead && !this.isTransitioning;
         for (const fl of this.flickerLights) {
             if (!fl.light) continue;
             let proximity = 0;
@@ -682,9 +552,9 @@ export class Game {
     }
 
     triggerDeath(cause) {
-        if (this.isDead) return;
-        if (this.invincible || this.gameWon) return;
-        this.isDead = true;
+        if (this.player.isDead) return;
+        if (this.player.invincible || this.player.gameWon) return;
+        this.player.isDead = true;
         this.isLocked = false;
         if (document.pointerLockElement) document.exitPointerLock();
 
@@ -700,9 +570,9 @@ export class Game {
     }
 
     triggerWin() {
-        if (this.gameWon) return;
-        this.gameWon = true;
-        this.invincible = true;
+        if (this.player.gameWon) return;
+        this.player.gameWon = true;
+        this.player.invincible = true;
         this.isLocked = false;
         if (document.pointerLockElement) document.exitPointerLock();
 
@@ -719,31 +589,23 @@ export class Game {
     }
 
     respawn() {
-        if (!this.isDead) return;
-        this.isDead = false;
-        this.gameWon = false;
-        this.invincible = false;
+        if (!this.player.isDead) return;
+        this.player.isDead = false;
+        this.player.gameWon = false;
+        this.player.invincible = false;
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
         this.sound.stop('death');
 
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
         this.gameTime = START_TIME;
-        this.flashlightZoom = 0;
         this.screen.updateTimerUI(this.gameTime);
-        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
-        this.camera.position.set(0, 0, 0);
-        this.velocity.set(0, 0, 0);
-        this.onGround = true;
-        this.landShake = 0;
-        this.breathPhase = 0;
-        this.isSchizo = false;
-        this.schizoTimer = 0;
+        this.player.spawnAt(this.spawnX, this.spawnZ);
+
         this.isLocked = true;
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
+
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
         this.sound.loop('map3', this.currentLevel === 2);
@@ -753,18 +615,12 @@ export class Game {
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
         this.sound.stop('death');
-        this.gameWon = false;
-        this.invincible = false;
+        this.player.gameWon = false;
+        this.player.invincible = false;
+        this.player.isDead = false;
         this.gameTime = START_TIME;
         this.currentLevel = 0;
-        this.isDead = false;
-        this.flashlightZoom = 0;
         this.generateLevel(0);
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
-        this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
-        this.velocity.set(0, 0, 0);
-        this.onGround = true;
         this.isLocked = true;
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
         this.screen.updateTimerUI(this.gameTime);
@@ -778,16 +634,11 @@ export class Game {
         if (document.pointerLockElement) document.exitPointerLock();
         this.isLocked = false;
 
-        this.isDead = false;
-        this.gameWon = false;
-        this.invincible = false;
+        this.player.isDead = false;
+        this.player.gameWon = false;
+        this.player.invincible = false;
         this.gameRunning = true;
         this.gameTime = START_TIME;
-        this.sanity = 100;
-        this.stamina = MAX_STAMINA;
-        this.flashlightZoom = 0;
-        this.schizoTimer = 0;
-        this.isSchizo = false;
         this.currentLevel = 0;
         this.generateLevel(0);
         this.prevTime = performance.now();
@@ -796,31 +647,26 @@ export class Game {
         window.__startMenuMusic && window.__startMenuMusic();
     }
 
-    // ── GAME LOOP ──
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
         this.prevTime = time;
 
-        // Win freeze — only render
-        if (this.gameWon) {
+        if (this.player.gameWon) {
             this.composer.render();
             this.animationId = requestAnimationFrame(this.animate);
             return;
         }
 
-        if (this.playerJumpHeardTimer > 0) this.playerJumpHeardTimer -= dt;
-        else this.playerJustJumped = false;
-
-        if (!this.isDead && this.gameRunning && !this.gameWon) {
+        if (!this.player.isDead && this.gameRunning) {
             this.gameTime -= dt;
             if (this.gameTime < 0) this.gameTime = 0;
             this.screen.updateTimerUI(this.gameTime);
-            if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
+            if (this.gameTime <= 0 && !this.player.isDead) this.triggerDeath('time');
         }
 
-        if (!this.isDead) {
-            const shouldPlay = (this.gameTime < 120 || this.sanity <= 16);
+        if (!this.player.isDead) {
+            const shouldPlay = (this.gameTime < 120 || this.player.sanity <= 16);
             if (shouldPlay && !this._bloodageActive) {
                 this._bloodageActive = true;
                 this.sound.loop('bloodage', true);
@@ -830,23 +676,20 @@ export class Game {
             }
         }
 
-        this.updateSanity(dt);
-        this.updateSchizophrenia(time, dt);
+        this.player.update(dt, time);
+
         this.updateMazeShifting(time, dt);
-        this.updateStamina(dt);
-        this.updateMovement(dt);
-        this.updateFlashlight();
 
         if (!this.isTransitioning && this.gameRunning && this.isLocked) this.checkTeleporter();
 
-        if (this.entity && this.entity.isActive && !this.isTransitioning && !this.isDead) {
-            this.entity.update(dt, this.cameraGroup.position, this.flashlightOn,
-                this.playerJustJumped, this.sanity, this.gameTime);
+        if (this.entity && this.entity.isActive && !this.isTransitioning && !this.player.isDead) {
+            this.entity.update(dt, this.cameraGroup.position, this.player.flashlightOn,
+                this.player.playerJustJumped, this.player.sanity, this.gameTime);
         }
 
         this.updateEntityLightFlicker(dt);
 
-        if (this.entity && this.entity.isActive && !this.isDead) {
+        if (this.entity && this.entity.isActive && !this.player.isDead) {
             const dx = this.cameraGroup.position.x - this.entity.position.x;
             const dz = this.cameraGroup.position.z - this.entity.position.z;
             const distE = Math.hypot(dx, dz);
@@ -868,108 +711,17 @@ export class Game {
             document.getElementById('infoContent').innerHTML =
                 `<span class="label">Coordinates</span> > ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}<br>` +
                 `<span class="label">Time Remaining</span> > ${this.screen.formatTime(this.gameTime)}<br>` +
-                `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.sanity)} (${Math.round(this.sanity)}%)<br>` +
-                `<span class="label">Flashlight Focus</span> > ${Math.round(this.flashlightZoom * 100)}%`;
+                `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.player.sanity)} (${Math.round(this.player.sanity)}%)<br>` +
+                `<span class="label">Flashlight Focus</span> > ${Math.round(this.player.flashlightZoom * 100)}%`;
         }
 
         this.composer.render();
         this.animationId = requestAnimationFrame(this.animate);
     }
 
-    updateSanity(dt) {
-        this.nearLightSource = this.checkNearbyLights();
-        if (!this.isDead) {
-            if (this.flashlightOn) {
-                this.sanity = Math.max(0, this.sanity - SANITY_DRAIN_FLASHLIGHT * dt);
-                this.flashlightOffTime = 0;
-            } else {
-                if (this.nearLightSource) {
-                    this.sanity = Math.min(100, this.sanity + SANITY_REGEN_NEAR_LIGHT * dt);
-                    this.flashlightOffTime = 0;
-                } else {
-                    this.flashlightOffTime += dt;
-                    if (this.flashlightOffTime > 2.0) this.sanity = Math.max(0, this.sanity - SANITY_DRAIN_DARKNESS * dt);
-                    else this.sanity = Math.max(0, this.sanity - SANITY_DRAIN_DARKNESS * dt * 0.3);
-                }
-            }
-            if (this.sanity <= 0) { this.sanity = 0; if (!this.isDead) this.triggerDeath('sanity'); }
-        }
-        this.screen.updateSanityUI(this.sanity);
-    }
-
-    checkNearbyLights() {
-        const pos = this.cameraGroup.position;
-        let nearest = Infinity;
-        for (const src of this.lightSources) {
-            if (!src.position) continue;
-            const d = pos.distanceTo(src.position);
-            if (d < nearest) nearest = d;
-        }
-        return nearest < LIGHT_DETECTION_RADIUS;
-    }
-
-    updateSchizophrenia(time, dt) {
-        const isBelowF = this.sanity < 10;
-        if (isBelowF !== this.isSchizo) this.isSchizo = isBelowF;
-        const schizoOverlay = document.getElementById('schizoOverlay');
-        const schizoIntensity = Math.min(1, (1 - (this.sanity / 100)) * 1.8);
-
-        if (this.isSchizo && !this.isDead) {
-            this.schizoTimer += dt;
-            schizoOverlay.classList.add('active');
-            if (this.sanity < 5) schizoOverlay.classList.add('intense');
-            else schizoOverlay.classList.remove('intense');
-            if (this.realismPass) {
-                const glitch = 0.15 + 0.65 * schizoIntensity * (0.5 + 0.5 * Math.sin(time * 0.004 + this.schizoTimer));
-                this.realismPass.uniforms.sanityGlitch.value = Math.min(0.9, glitch);
-                this.realismPass.uniforms.sanityDarkness.value = 0.05 + 0.25 * schizoIntensity * (0.5 + 0.5 * Math.sin(time * 0.002));
-                this.realismPass.uniforms.aberration.value = 0.025 + 0.05 * schizoIntensity * (0.5 + 0.5 * Math.sin(time * 0.006 + this.schizoTimer));
-                this.realismPass.uniforms.redTint.value = 0.05 + 0.35 * schizoIntensity * (0.5 + 0.5 * Math.sin(time * 0.003 + this.schizoTimer * 0.7));
-                this.realismPass.uniforms.distortion.value = 0.15 + 0.25 * schizoIntensity;
-            }
-            for (const fl of this.flickerLights) {
-                if (fl.entityFlashActive) continue;
-                const flicker = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(time * 0.025 + fl.phase + this.schizoTimer * 4));
-                fl.light.intensity += (fl.baseIntensity * flicker * 0.5 - fl.light.intensity) * 0.12;
-                if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined) {
-                    const base = fl.bulb.userData?.baseEmissive ?? 0.8;
-                    fl.bulb.material.emissiveIntensity = base * (0.4 + 0.6 * flicker);
-                }
-            }
-            if (this.flashlightOn && Math.random() < 0.12) this.flashlight.intensity *= (0.3 + Math.random() * 0.7);
-            if (this.realismPass) {
-                const blurX = this.smoothMoveX * 0.5 + this.mouseSpeed * 0.2;
-                const blurY = this.smoothMoveY * 0.5 + this.mouseSpeed * 0.2;
-                this.realismPass.uniforms.motionBlurX.value += (blurX - this.realismPass.uniforms.motionBlurX.value) * 0.08;
-                this.realismPass.uniforms.motionBlurY.value += (blurY - this.realismPass.uniforms.motionBlurY.value) * 0.08;
-            }
-        } else {
-            schizoOverlay.classList.remove('active', 'intense');
-            if (this.realismPass) {
-                this.realismPass.uniforms.sanityGlitch.value += (0 - this.realismPass.uniforms.sanityGlitch.value) * 0.03;
-                this.realismPass.uniforms.sanityDarkness.value += (0 - this.realismPass.uniforms.sanityDarkness.value) * 0.03;
-                this.realismPass.uniforms.aberration.value += (0.025 - this.realismPass.uniforms.aberration.value) * 0.03;
-                this.realismPass.uniforms.redTint.value += (0 - this.realismPass.uniforms.redTint.value) * 0.03;
-                this.realismPass.uniforms.distortion.value += (0.15 - this.realismPass.uniforms.distortion.value) * 0.03;
-                this.realismPass.uniforms.motionBlurX.value += (0 - this.realismPass.uniforms.motionBlurX.value) * 0.05;
-                this.realismPass.uniforms.motionBlurY.value += (0 - this.realismPass.uniforms.motionBlurY.value) * 0.05;
-            }
-            this.schizoTimer = 0;
-            for (const fl of this.flickerLights) {
-                if (fl.entityFlashActive) continue;
-                const flicker = 0.6 + 0.4 * Math.sin(time * 0.001 * fl.speed + fl.phase);
-                const target = fl.baseIntensity * (0.5 + 0.5 * flicker);
-                fl.light.intensity += (target - fl.light.intensity) * 0.05;
-                if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined) {
-                    const base = fl.bulb.userData?.baseEmissive ?? 0.8;
-                    fl.bulb.material.emissiveIntensity = base * (0.6 + 0.4 * flicker);
-                }
-            }
-        }
-    }
-
     updateMazeShifting(time, dt) {
-        if (this.sanity > 30 || this.wallMeshes.length === 0) {
+        const sanity = this.player.sanity;
+        if (sanity > 30 || this.wallMeshes.length === 0) {
             for (const wall of this.wallMeshes) {
                 if (wall.userData.shiftOffset) {
                     wall.userData.shiftOffset.lerp(new THREE.Vector3(0, 0, 0), 0.02);
@@ -980,8 +732,8 @@ export class Game {
             return;
         }
         const camPos = this.cameraGroup.position;
-        const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        const shiftAmount = (1 - this.sanity / 30) * 0.6;
+        const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.cameraGroup.children[0].quaternion);
+        const shiftAmount = (1 - sanity / 30) * 0.6;
         if (this.realismPass) this.realismPass.uniforms.mazeShift.value += (shiftAmount * 0.5 - this.realismPass.uniforms.mazeShift.value) * 0.02;
         for (const wall of this.wallMeshes) {
             const wallPos = wall.userData.origPos;
@@ -1005,256 +757,8 @@ export class Game {
         }
     }
 
-    updateStamina(dt) {
-        const isMoving = this.keys['W'] || this.keys['S'] || this.keys['A'] || this.keys['D'] ||
-            this.keys['ArrowUp'] || this.keys['ArrowDown'] || this.keys['ArrowLeft'] || this.keys['ArrowRight'];
-        const fightOrFlightActive = this.sanity < 30 && !this.isDead;
-        const canSprint = this.isSprinting && isMoving && this.onGround && this.stamina > 0 && !this.isDead;
-
-        if (canSprint) {
-            this.stamina = Math.max(0, this.stamina - STAMINA_DRAIN * dt * (fightOrFlightActive ? 0.8 : 1.0));
-            if (this.stamina <= 0) this.isSprinting = false;
-        } else if (isMoving && this.onGround && !this.isDead) {
-            this.stamina = Math.min(MAX_STAMINA, this.stamina + STAMINA_REGEN_WALK * dt * (fightOrFlightActive ? 1.2 : 1.0));
-        } else if (!this.isDead) {
-            this.stamina = Math.min(MAX_STAMINA, this.stamina + STAMINA_REGEN * dt * (fightOrFlightActive ? 1.1 : 1.0));
-        }
-        this.screen.updateStaminaUI(this.stamina, this.sanity);
-        document.getElementById('staminaContainer').style.opacity = (this.isSprinting && isMoving && this.onGround) ? '0.9' : '0';
-        const staminaPct = this.stamina / MAX_STAMINA;
-        if (this.realismPass) {
-            const target = (staminaPct < 0.3) ? (1 - staminaPct / 0.3) * 0.5 : 0;
-            const current = this.realismPass.uniforms.staminaVignette.value || 0;
-            this.realismPass.uniforms.staminaVignette.value = current + (target - current) * 0.03;
-        }
-    }
-
-    updateMovement(dt) {
-        if (this.isTransitioning || !this.gameRunning || !this.isLocked || this.isDead || this.consoleOpen) return;
-
-        const fightOrFlightActive = this.sanity < 30 && !this.isDead;
-        const sprintActive = this.isSprinting && this.onGround && this.stamina > 0 && !this.isDead;
-        const currentMoveSpeed = sprintActive
-            ? (fightOrFlightActive ? FIGHT_FLIGHT_SPRINT_SPEED : SPRINT_MOVE_SPEED)
-            : (fightOrFlightActive ? FIGHT_FLIGHT_MOVE_SPEED : BASE_MOVE_SPEED);
-
-        const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-        const strafe = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-
-        const wasOnGround = this.onGround;
-        this.onGround = (this.cameraGroup.position.y <= this.playerHeight + 0.05 && this.velocity.y <= 0);
-        if (this.onGround && !wasOnGround && this.velocity.y <= 0) {
-            this.landShake = LAND_SHAKE_AMOUNT * (sprintActive ? 1.6 : (fightOrFlightActive ? 1.3 : 1.0));
-            this.sound.playJumpLand();
-        }
-        if (this.landShake > 0.0001) {
-            this.landShake *= 0.90;
-            if (this.landShake < 0.0001) this.landShake = 0;
-            this.cameraGroup.position.y -= this.landShake * dt * 22;
-        }
-
-        if (this.keys[' '] && this.onGround) {
-            this.velocity.y = JUMP_SPEED * (sprintActive ? 1.12 : (fightOrFlightActive ? 1.08 : 1.0));
-            this.onGround = false;
-            this.playerJustJumped = true;
-            this.playerJumpHeardTimer = 0.4;
-        }
-        this.velocity.y += GRAVITY * dt;
-
-        let moveX = 0, moveZ = 0;
-        if (this.keys['W'] || this.keys['ArrowUp']) { moveX += forward.x; moveZ += forward.z; }
-        if (this.keys['S'] || this.keys['ArrowDown']) { moveX -= forward.x; moveZ -= forward.z; }
-        if (this.keys['A'] || this.keys['ArrowLeft']) { moveX -= strafe.x; moveZ -= strafe.z; }
-        if (this.keys['D'] || this.keys['ArrowRight']) { moveX += strafe.x; moveZ += strafe.z; }
-
-        const inputLen = Math.sqrt(moveX * moveX + moveZ * moveZ);
-        let desiredDir = new THREE.Vector3(moveX, 0, moveZ);
-        if (inputLen > 0) desiredDir.normalize();
-
-        if (this.onGround) {
-            if (inputLen > 0) {
-                const accel = currentMoveSpeed * 5.5;
-                this.velocity.x += desiredDir.x * accel * dt;
-                this.velocity.z += desiredDir.z * accel * dt;
-            }
-            const friction = sprintActive ? 5.0 : (fightOrFlightActive ? 5.5 : 6.5);
-            this.velocity.x *= (1 - dt * friction);
-            this.velocity.z *= (1 - dt * friction);
-            const horSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
-            if (horSpeed > currentMoveSpeed) {
-                this.velocity.x = (this.velocity.x / horSpeed) * currentMoveSpeed;
-                this.velocity.z = (this.velocity.z / horSpeed) * currentMoveSpeed;
-            }
-        } else {
-            if (inputLen > 0 && (this.keys['A'] || this.keys['ArrowLeft'] || this.keys['D'] || this.keys['ArrowRight'])) {
-                const addSpeed = AIR_ACCEL * dt;
-                this.velocity.x += desiredDir.x * addSpeed;
-                this.velocity.z += desiredDir.z * addSpeed;
-                const newSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
-                if (newSpeed > MAX_SPEED) {
-                    this.velocity.x = (this.velocity.x / newSpeed) * MAX_SPEED;
-                    this.velocity.z = (this.velocity.z / newSpeed) * MAX_SPEED;
-                }
-            }
-            this.velocity.x *= (1 - dt * 0.7);
-            this.velocity.z *= (1 - dt * 0.7);
-        }
-
-        const moveDelta = new THREE.Vector3(this.velocity.x * dt, this.velocity.y * dt, this.velocity.z * dt);
-        const newX = this.cameraGroup.position.x + moveDelta.x;
-        const newZ = this.cameraGroup.position.z + moveDelta.z;
-
-        if (this.isWalkableDynamic(this.mazeData, this.currentSize, this.currentHalf, newX, this.cameraGroup.position.z)) {
-            this.cameraGroup.position.x = newX;
-        } else this.velocity.x = 0;
-        if (this.isWalkableDynamic(this.mazeData, this.currentSize, this.currentHalf, this.cameraGroup.position.x, newZ)) {
-            this.cameraGroup.position.z = newZ;
-        } else this.velocity.z = 0;
-
-        this.cameraGroup.position.y += moveDelta.y;
-        if (this.cameraGroup.position.y < this.playerHeight) {
-            this.cameraGroup.position.y = this.playerHeight;
-            if (this.velocity.y < 0) this.velocity.y = 0;
-            this.onGround = true;
-        }
-        if (this.cameraGroup.position.y > this.playerHeight + wallHeight) {
-            this.cameraGroup.position.y = this.playerHeight + wallHeight;
-            if (this.velocity.y > 0) this.velocity.y = 0;
-        }
-
-        const targetFov = sprintActive ? 92 : (fightOrFlightActive ? 88 : 84);
-        if (!this.isDead) {
-            this.camera.fov += (targetFov - this.camera.fov) * 0.04;
-            this.camera.updateProjectionMatrix();
-        }
-        if (this.realismPass) {
-            const target = sprintActive ? 1.04 : (fightOrFlightActive ? 1.02 : 1.0);
-            const cur = this.realismPass.uniforms.fovScale.value || 1.0;
-            this.realismPass.uniforms.fovScale.value = cur + (target - cur) * 0.04;
-        }
-
-        const breathSpeedMult = sprintActive ? 1.9 : (fightOrFlightActive ? 1.4 : 1.0);
-        if (!this.isDead) this.breathPhase += dt * 0.7 * breathSpeedMult;
-        const breath = Math.sin(this.breathPhase * Math.PI * 2);
-        const breathOffset = breath * 0.018 * breathSpeedMult;
-        const breathTilt = breath * 0.003 * breathSpeedMult;
-
-        let bobY = 0, bobX = 0;
-        const isMoving = inputLen > 0;
-        if (isMoving && this.onGround && !this.isTransitioning && !this.isDead) {
-            const bobSpeed = sprintActive ? 2.2 : (fightOrFlightActive ? 1.6 : 1.0);
-            const bobAmp = sprintActive ? 0.075 : (fightOrFlightActive ? 0.06 : 0.04);
-            this.bobTime += dt * 2 * Math.PI * bobSpeed;
-            bobY = Math.sin(this.bobTime) * bobAmp;
-            bobX = Math.sin(this.bobTime * 0.7) * bobAmp * 0.5;
-        }
-        if (!this.isTransitioning && !this.isDead) {
-            this.camera.position.y = breathOffset + bobY;
-            this.camera.position.x = bobX + this.smoothHeadTilt * 0.02;
-            this.camera.rotation.z = breathTilt * 0.5 + this.smoothHeadTilt * 0.015;
-            this.camera.rotation.x += breathTilt * 0.3;
-        } else {
-            this.camera.position.set(0, 0, 0);
-            this.camera.rotation.z = 0;
-        }
-        this.smoothHeadTilt += (this.headTilt - this.smoothHeadTilt) * 0.06;
-
-        const moveX2 = this.smoothMoveX + this.velocity.x * 0.012;
-        const moveY2 = this.smoothMoveY + this.velocity.z * 0.012;
-        if (this.realismPass) {
-            this.realismPass.uniforms.movementX.value = Math.max(-1, Math.min(1, moveX2));
-            this.realismPass.uniforms.movementY.value = Math.max(-1, Math.min(1, moveY2));
-            this.realismPass.uniforms.time.value = performance.now() * 0.001;
-            const dirtTarget = sprintActive ? 0.5 : 0.15;
-            const curDirt = this.realismPass.uniforms.lensDirt.value || 0;
-            this.realismPass.uniforms.lensDirt.value = curDirt + (dirtTarget - curDirt) * 0.02;
-        }
-        this.mouseSpeed *= 0.95;
-    }
-
-    isWalkableDynamic(mazeData, size, half, worldX, worldZ) {
-        for (let i = 0; i < 12; i++) {
-            const angle = (i / 12) * Math.PI * 2;
-            const px = worldX + Math.cos(angle) * PLAYER_RADIUS;
-            const pz = worldZ + Math.sin(angle) * PLAYER_RADIUS;
-            const gx = px / tileSize + half;
-            const gz = pz / tileSize + half;
-            const ix = Math.round(gx);
-            const iz = Math.round(gz);
-            if (ix < 0 || ix >= size || iz < 0 || iz >= size) return false;
-            const cell = mazeData[iz][ix];
-            const localX = gx - ix, localZ = gz - iz;
-            if (localX < -0.5 + WALL_MARGIN && cell.left) return false;
-            if (localX > 0.5 - WALL_MARGIN && cell.right) return false;
-            if (localZ < -0.5 + WALL_MARGIN && cell.top) return false;
-            if (localZ > 0.5 - WALL_MARGIN && cell.bottom) return false;
-        }
-        return true;
-    }
-
-    updateFlashlight() {
-        const camPos = new THREE.Vector3();
-        this.camera.getWorldPosition(camPos);
-        const camQuat = new THREE.Quaternion();
-        this.camera.getWorldQuaternion(camQuat);
-        const offset = new THREE.Vector3(0.38, -0.18, -0.58);
-        const flashWorldPos = camPos.clone().add(offset.clone().applyQuaternion(camQuat));
-        this._flashDir.set(0, 0, -1).applyQuaternion(camQuat).normalize();
-        const flashTargetPos = flashWorldPos.clone().addScaledVector(this._flashDir, 8);
-        if (this.isFirstFlash) {
-            this.smoothFlashPos.copy(flashWorldPos);
-            this.smoothFlashTarget.copy(flashTargetPos);
-            this.isFirstFlash = false;
-        }
-        this.smoothFlashPos.lerp(flashWorldPos, 0.10);
-        this.smoothFlashTarget.lerp(flashTargetPos, 0.10);
-        this.flashlight.position.copy(this.smoothFlashPos);
-        this.flashlight.target.position.copy(this.smoothFlashTarget);
-        this.lensBounce.position.copy(this.smoothFlashPos).addScaledVector(this._flashDir, 0.1);
-
-        const z = this.flashlightZoom;
-        const targetAngle = FLASH_ANGLE_NORMAL + (FLASH_ANGLE_ZOOMED - FLASH_ANGLE_NORMAL) * z;
-        const targetDistance = FLASH_DIST_NORMAL + (FLASH_DIST_ZOOMED - FLASH_DIST_NORMAL) * z;
-        const targetPenumbra = FLASH_PENUMBRA_NORMAL + (FLASH_PENUMBRA_ZOOMED - FLASH_PENUMBRA_NORMAL) * z;
-        const baseIntensity = FLASH_INTENSITY_NORMAL + (FLASH_INTENSITY_ZOOMED - FLASH_INTENSITY_NORMAL) * z;
-
-        this.flashlight.angle += (targetAngle - this.flashlight.angle) * 0.18;
-        this.flashlight.distance += (targetDistance - this.flashlight.distance) * 0.18;
-        this.flashlight.penumbra += (targetPenumbra - this.flashlight.penumbra) * 0.18;
-
-        this._flashColorTarget.copy(FLASH_COLOR_NORMAL).lerp(FLASH_COLOR_ZOOMED, z);
-        this.flashlight.color.lerp(this._flashColorTarget, 0.18);
-        this.lensBounce.color.lerp(this._flashColorTarget, 0.18);
-
-        const shadowFar = this.flashlight.distance + 2;
-        if (Math.abs(this.flashlight.shadow.camera.far - shadowFar) > 0.5) {
-            this.flashlight.shadow.camera.far = shadowFar;
-            this.flashlight.shadow.camera.updateProjectionMatrix();
-        }
-
-        let targetIntensity = this.flashlightOn ? baseIntensity : 0;
-        if (this.isFlickering) {
-            targetIntensity = this.flashlightOn ? (Math.random() > 0.5 ? 0 : baseIntensity) : 0;
-            this.flickerPhase += 0.05;
-            if (this.flickerPhase > this.FLICKER_DURATION) {
-                this.isFlickering = false;
-                this.flickerPhase = 0;
-                this.flickerInterval = 15 + Math.random() * 12;
-                this.flickerTimer = 0;
-            }
-        }
-        if (this.flashlightOn && !this.isFlickering && Math.random() < 0.002) targetIntensity *= (0.7 + Math.random() * 0.3);
-        this.flashlight.intensity += (targetIntensity - this.flashlight.intensity) * 0.4;
-        this.lensBounce.intensity += ((this.flashlightOn ? 0.6 : 0) - this.lensBounce.intensity) * 0.4;
-        this.flickerTimer += 1 / 60;
-        if (this.flickerTimer >= this.flickerInterval && !this.isFlickering) {
-            this.isFlickering = true;
-            this.flickerPhase = 0;
-        }
-    }
-
     checkTeleporter() {
-        if (this.isTransitioning || this.isDead || this.gameWon) return;
+        if (this.isTransitioning || this.player.isDead || this.player.gameWon) return;
         const px = this.cameraGroup.position.x, pz = this.cameraGroup.position.z;
         const dist = Math.sqrt((px - this.teleporterPos.x) ** 2 + (pz - this.teleporterPos.z) ** 2);
         if (dist < 1.0) {
