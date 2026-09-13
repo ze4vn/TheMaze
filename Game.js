@@ -142,15 +142,17 @@ export class Game {
     }
 
     init() {
+
         this.setupThree();
-        this.setupPostProcessing();
-        this.setupInput();
-        this.setupConsole();
 
         this.player.setup(this.scene, this.cameraAspect());
-
         this.camera = this.player.camera;
         this.cameraGroup = this.player.cameraGroup;
+
+        this.setupPostProcessing();
+
+        this.setupInput();
+        this.setupConsole();
 
         this.generateLevel(0);
 
@@ -201,7 +203,7 @@ export class Game {
             this.player.camera.updateProjectionMatrix();
         }
         this.renderer.setSize(w, h);
-        this.composer.setSize(w, h);
+        if (this.composer) this.composer.setSize(w, h);
     }
 
     setupPostProcessing() {
@@ -732,7 +734,7 @@ export class Game {
             return;
         }
         const camPos = this.cameraGroup.position;
-        const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.cameraGroup.children[0].quaternion);
+        const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.player.camera.quaternion);
         const shiftAmount = (1 - sanity / 30) * 0.6;
         if (this.realismPass) this.realismPass.uniforms.mazeShift.value += (shiftAmount * 0.5 - this.realismPass.uniforms.mazeShift.value) * 0.02;
         for (const wall of this.wallMeshes) {
