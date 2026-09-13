@@ -1,1 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TheMaze5</title>
+    <link rel="stylesheet" href="Style.css" />
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
 
+    <div id="mainMenu">
+        <h1>TheMaze5</h1>
+        <div class="sub">A descent into darkness</div>
+        <button class="menu-btn" id="btnStartGame">Start Game</button>
+        <button class="menu-btn" id="btnQuit">Quit</button>
+    </div>
+
+    <div id="gameOverlay">
+        <div class="gameBg"></div>
+        <div class="gameContent">
+            <div id="threeContainer"></div>
+            <div id="winOverlay">
+                <div class="winText">You Escaped!</div>
+                <div class="winSub" id="winContinue">Click to replay</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="flashText"></div>
+    <div id="whiteFlash"></div>
+    <div id="blackFade"></div>
+    <div id="infoPanel"><div id="infoContent"></div></div>
+
+    <div id="timerContainer">5:0:0</div>
+
+    <div id="levelTitleContainer">
+        <div class="level-title-main" id="levelTitleMain">Level 1</div>
+        <div class="level-title-sub" id="levelTitleSub">The Woodland</div>
+    </div>
+
+    <div id="flashlightHint">click to toggle flashlight</div>
+
+    <div id="staminaContainer"><div id="staminaBar"></div></div>
+
+    <div id="sanityContainer">
+        <div id="sanityCircle">
+            <div id="sanityLetter">A</div>
+            <div id="sanityLabel">SANITY</div>
+        </div>
+    </div>
+
+    <div id="schizoOverlay"></div>
+
+    <div id="deathOverlay">
+        <div id="deathRedOverlay"></div>
+        <div id="deathWhiteFlash"></div>
+        <div id="deathContent">
+            <h1 id="deathTitle">You Have Died.</h1>
+            <div class="death-sub" id="deathSub">Your time has run out.</div>
+            <div id="deathButtons">
+                <button id="btnRespawn">Respawn</button>
+                <button id="btnMainMenu">Main Menu</button>
+                <button id="btnRestartLevels">Restart Levels</button>
+            </div>
+        </div>
+    </div>
+  
+    <div id="entityKillOverlay">
+        <img id="entityKillFrame" src="e1.png" alt="" />
+        <div class="entity-kill-text">The Entity Has Killed You.</div>
+        <div id="entityKillButtons">
+            <button id="btnEntityRespawn">Respawn</button>
+            <button id="btnEntityMainMenu">Main Menu</button>
+            <button id="btnEntityRestart">Restart Levels</button>
+        </div>
+    </div>
+
+    <script type="module" src="Script.js"></script>
+</body>
+</html>
