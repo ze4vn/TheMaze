@@ -4,7 +4,6 @@ import { generateTunnelMaze, bfs, findFurthestCell } from './GameMap1.js';
 
 function generateSewerMaze(size) {
     const grid = generateTunnelMaze(size);
-
     for (let y = 1; y < size - 1; y++) {
         for (let x = 1; x < size - 1; x++) {
             if (Math.random() < 0.5 && grid[y][x].top) {
@@ -36,7 +35,6 @@ function createSewerWallTexture() {
             const g = shade + Math.random() * 12;
             ctx.fillStyle = `rgb(${shade},${g},${shade - 5})`;
             ctx.fillRect(px + 2, y + 2, bw - 4, bh - 4);
-
             for (let i = 0; i < 18; i++) {
                 ctx.fillStyle = `rgba(40, ${80 + Math.random() * 40}, 40, ${0.15 + Math.random() * 0.35})`;
                 ctx.fillRect(
@@ -92,7 +90,6 @@ function createSewerFloorTexture() {
             ctx.fillStyle = `rgb(${shade},${shade + 8},${shade - 2})`;
             ctx.fillRect(x + 1, y + 1, tile - 2, tile - 2);
 
-            // Algae
             for (let i = 0; i < 15; i++) {
                 ctx.fillStyle = `rgba(30, ${70 + Math.random() * 50}, 40, ${0.1 + Math.random() * 0.3})`;
                 ctx.fillRect(
@@ -188,14 +185,15 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     const group = new THREE.Group();
     scene.add(group);
 
+    const totalSize = size * tileSize;
+
     const floorMat = new THREE.MeshStandardMaterial({
         map: floorTex, roughness: 0.75, metalness: 0.1, side: THREE.DoubleSide
     });
-    const totalSize = size * tileSize;
     const floorGeo = new THREE.PlaneGeometry(totalSize, totalSize);
     floorGeo.rotateX(-Math.PI / 2);
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.position.set(0, 0, 0);
+    floorMesh.position.set(0, -0.5, 0);
     floorMesh.receiveShadow = true;
     group.add(floorMesh);
 
@@ -276,70 +274,43 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
         }
     }
 
-    const waterGeo = new THREE.PlaneGeometry(totalSize, totalSize);
-    const waterReflector = new Reflector(waterGeo, {
-        clipBias: 0.003,
-        textureWidth: 512,
-        textureHeight: 512,
-        color: 0x1a3a28
+    let waterReflector = null;
+    try {
+        const waterGeo = new THREE.PlaneGeometry(totalSize, totalSize);
+        waterReflector = new Reflector(waterGeo, {
+            clipBias: 0.003,
+            textureWidth: 512,
+            textureHeight: 512,
+            color: 0x224430
+        });
+        waterReflector.rotation.x = -Math.PI / 2;
+        waterReflector.position.y = 0.05;
+        group.add(waterReflector);
+    } catch (err) {
+        console.warn('[Map3] Reflector failed, using plain water plane:', err);
+
+        const fallbackMat = new THREE.MeshStandardMaterial({
+            color: 0x1a3a28,
+            roughness: 0.2,
+            metalness: 0.6,
+            side: THREE.DoubleSide
+        });
+        const fallback = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), fallbackMat);
+        fallback.rotation.x = -Math.PI / 2;
+        fallback.position.y = 0.05;
+        group.add(fallback);
+    }
+
+    const tintMat = new THREE.MeshBasicMaterial({
+        color: 0x0f2418,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false
     });
-    waterReflector.rotation.x = -Math.PI / 2;
-    waterReflector.position.y = 0.08;
-    waterReflector.userData.isWater = true;
-    waterReflector.userData.totalSize = totalSize;
-
-    waterReflector.material.uniforms.time = { value: 0 };
-    waterReflector.material.uniforms.playerPos = { value: new THREE.Vector2(0.5, 0.5) };
-
-    waterReflector.material.fragmentShader = `
-        uniform vec3 color;
-        uniform sampler2D tDiffuse;
-        uniform float time;
-        uniform vec2 playerPos;
-        varying vec4 vUv;
-
-        float ripple(vec2 p, float t) {
-            // Ambient rolling waves
-            float d1 = length(p - vec2(0.5, 0.5));
-            float w1 = sin(d1 * 22.0 - t * 2.5) * 0.4;
-            // Player wake
-            float d2 = length(p - playerPos);
-            float w2 = sin(d2 * 45.0 - t * 7.0) * exp(-d2 * 4.0) * 2.2;
-            return w1 + w2;
-        }
-
-        void main() {
-            vec2 uv = vUv.xy / vUv.w;
-
-            float r = ripple(uv, time);
-            // Distort reflection UVs
-            vec2 offset = vec2(
-                sin(uv.y * 30.0 + time * 1.5) * 0.0025 + r * 0.004,
-                cos(uv.x * 25.0 + time * 1.2) * 0.0025 + r * 0.004
-            );
-            vec2 distortedUv = uv + offset;
-
-            vec4 base = texture2D(tDiffuse, distortedUv);
-
-            // Green murky tint
-            vec3 tinted = base.rgb * color;
-
-            // Depth-like murk gradient
-            float murk = 0.15 + 0.08 * sin(time * 0.6);
-            tinted = mix(tinted, vec3(0.06, 0.16, 0.10), murk);
-
-            // Ripple highlights (the shiny peaks of waves)
-            float highlight = abs(r) * 0.18;
-            tinted += vec3(0.08, 0.22, 0.12) * highlight;
-
-            gl_FragColor = vec4(tinted, 1.0);
-            #include <tonemapping_fragment>
-            #include <colorspace_fragment>
-        }
-    `;
-    waterReflector.material.needsUpdate = true;
-
-    group.add(waterReflector);
+    const tintPlane = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), tintMat);
+    tintPlane.rotation.x = -Math.PI / 2;
+    tintPlane.position.y = 0.06;
+    group.add(tintPlane);
 
     const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2a3028, roughness: 0.6, metalness: 0.5 });
     const pipeMat2 = new THREE.MeshStandardMaterial({ color: 0x1e2820, roughness: 0.75, metalness: 0.3 });
@@ -358,7 +329,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
         pipe.receiveShadow = true;
         group.add(pipe);
     }
-  
+
     for (let i = 0; i < 8; i++) {
         const x = Math.floor(Math.random() * (size - 4)) + 2;
         const y = Math.floor(Math.random() * size);
@@ -407,6 +378,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
 
     return {
         group, data, spawnPos, exitPos, lightSources, flickerLights, wallMeshes,
-        waterReflector, totalSize
+        waterReflector: null, 
+        totalSize
     };
 }
