@@ -47,7 +47,8 @@ export class GameScreen {
         const level = this.getSanityLevel(v);
         this.sanityLetter.textContent = level;
         this.sanityLetter.className = '';
-        if (v < 10) {
+        if (v <= 16) {
+
             this.sanityLetter.classList.add('level-below-f');
             this.sanityCircle.classList.add('danger');
         } else {
@@ -90,7 +91,6 @@ export class GameScreen {
         title.classList.remove('anim');
         buttons.classList.remove('visible');
         entityWrap.classList.remove('show');
-
         void overlay.offsetWidth;
 
         white.classList.add('on');
