@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three'; 
 function createConcreteWallTexture(baseGray, mortarGray) {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
