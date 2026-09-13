@@ -51,6 +51,7 @@ const FLASH_ZOOM_STEP = 0.12;
 const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
 const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
+// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
@@ -72,7 +73,6 @@ class SoundManager {
         this.sounds.bloodage.volume = 0.55;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
-
         this._playing = { map1: false, map2: false, map3: false, bloodage: false, entity: false };
     }
     play(name) {
@@ -217,7 +217,6 @@ export class Game {
         this.screen.updateStaminaUI(this.stamina, this.sanity);
         this.prevTime = performance.now();
         this.animate(this.prevTime);
-
         this.sound.loop('map1', true);
 
         setTimeout(() => {
@@ -399,13 +398,9 @@ export class Game {
         };
         this.realismPass = new ShaderPass(realismShader);
         composer.addPass(this.realismPass);
-
-        // Bloom — higher threshold so only the very brightest pixels bloom
         composer.addPass(new UnrealBloomPass(
             new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-            0.18,   // strength
-            0.20,   // radius
-            0.42    // threshold (raised from 0.08)
+            0.18, 0.20, 0.42
         ));
         composer.addPass(new OutputPass());
         this.composer = composer;
@@ -428,7 +423,6 @@ export class Game {
     setupConsole() {
         this.consoleEl = document.getElementById('devConsole');
         this.consoleInput = document.getElementById('consoleInput');
-
         this.consoleInput.addEventListener('keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Enter') {
@@ -441,20 +435,14 @@ export class Game {
         });
     }
 
-    toggleConsole() {
-        if (this.consoleOpen) this.closeConsole();
-        else this.openConsole();
-    }
+    toggleConsole() { if (this.consoleOpen) this.closeConsole(); else this.openConsole(); }
 
     openConsole() {
         if (this.consoleOpen) return;
         this.consoleOpen = true;
         this.consoleEl.classList.add('active');
         if (document.pointerLockElement) document.exitPointerLock();
-        setTimeout(() => {
-            this.consoleInput.focus();
-            this.consoleInput.select();
-        }, 30);
+        setTimeout(() => { this.consoleInput.focus(); this.consoleInput.select(); }, 30);
     }
 
     closeConsole() {
@@ -462,10 +450,8 @@ export class Game {
         this.consoleOpen = false;
         this.consoleEl.classList.remove('active');
         this.consoleInput.blur();
-        if (!this.isDead && !this.isTransitioning) {
-            setTimeout(() => {
-                try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
-            }, 80);
+        if (!this.isDead && !this.isTransitioning && !this.gameWon) {
+            setTimeout(() => { try { this.renderer.domElement.requestPointerLock(); } catch (e) {} }, 80);
         }
     }
 
@@ -506,13 +492,8 @@ export class Game {
     }
 
     onKeyDown(e) {
-        if (e.key === '`' || e.key === '~') {
-            e.preventDefault();
-            this.toggleConsole();
-            return;
-        }
+        if (e.key === '`' || e.key === '~') { e.preventDefault(); this.toggleConsole(); return; }
         if (this.consoleOpen) return;
-
         if (e.key === ' ') e.preventDefault();
         const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
         this.keys[k] = true;
@@ -542,17 +523,12 @@ export class Game {
         this.smoothHeadTilt += (this.headTilt - this.smoothHeadTilt) * 0.08;
         this.mouseSpeed = Math.sqrt(e.movementX * e.movementX + e.movementY * e.movementY) * 0.02;
     }
-
     onWheel(e) {
         e.preventDefault();
         if (!this.isLocked || this.isDead || this.isTransitioning || this.consoleOpen) return;
-        if (e.deltaY < 0) {
-            this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
-        } else {
-            this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
-        }
+        if (e.deltaY < 0) this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
+        else this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
     }
-
     onPointerLockChange() {
         this.isLocked = document.pointerLockElement === this.renderer.domElement;
     }
@@ -565,19 +541,16 @@ export class Game {
         }
     }
 
+    // ── LEVEL GENERATION ──
     generateLevel(level) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
         this.totalSize = 0;
 
         let result;
-        if (level === 0) {
-            result = generateMap1(this.scene, MAZE_SIZE, wallHeight, tileSize);
-        } else if (level === 1) {
-            result = generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
-        } else {
-            result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
-        }
+        if (level === 0) result = generateMap1(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        else if (level === 1) result = generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        else result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
 
         this.mazeGroup = result.group;
         this.mazeData = result.data;
@@ -604,7 +577,7 @@ export class Game {
         for (const fl of this.flickerLights) {
             if (fl.bulb && fl.bulb.material) {
                 fl.bulb.material = fl.bulb.material.clone();
-                fl.bulb.userData.baseEmissive = fl.bulb.material.emissiveIntensity;
+                fl.bulb.userData.baseEmissive = fl.bulb.material.emissiveIntensity || 1;
             }
             fl.entityFlashOn = true;
             fl.entityFlashActive = false;
@@ -614,8 +587,8 @@ export class Game {
         this.screen.updateSanityUI(this.sanity);
         this.screen.updateStaminaUI(this.stamina, this.sanity);
 
-        if (level === 1) this.screen.showLevelTitle(1, 'The Woodland');
-        else if (level === 2) this.screen.showLevelTitle(2, 'The Sewers');
+        if (level === 1) this.screen.showLevelTitle(1, 'The Woodlands');
+        else if (level === 2) this.screen.showLevelTitle(2, 'Null Sewers');
 
         this.currentLevel = level;
 
@@ -691,11 +664,12 @@ export class Game {
                 if (Math.random() < toggleChance) fl.entityFlashOn = !fl.entityFlashOn;
                 if (!fl.entityFlashOn) {
                     fl.light.intensity = 0;
-                    if (fl.bulb && fl.bulb.material) fl.bulb.material.emissiveIntensity = 0.0;
+                    if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined)
+                        fl.bulb.material.emissiveIntensity = 0.0;
                 } else {
                     const boost = 1.0 + proximity * 0.9;
                     fl.light.intensity = fl.baseIntensity * boost;
-                    if (fl.bulb && fl.bulb.material) {
+                    if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined) {
                         const base = fl.bulb.userData.baseEmissive ?? 0.8;
                         fl.bulb.material.emissiveIntensity = base * boost;
                     }
@@ -770,7 +744,6 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
-
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
         this.sound.loop('map3', this.currentLevel === 2);
@@ -823,12 +796,13 @@ export class Game {
         window.__startMenuMusic && window.__startMenuMusic();
     }
 
+    // ── GAME LOOP ──
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
         this.prevTime = time;
 
-        // ── Win freeze: only render, skip all logic ──
+        // Win freeze — only render
         if (this.gameWon) {
             this.composer.render();
             this.animationId = requestAnimationFrame(this.animate);
@@ -957,7 +931,7 @@ export class Game {
                 if (fl.entityFlashActive) continue;
                 const flicker = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(time * 0.025 + fl.phase + this.schizoTimer * 4));
                 fl.light.intensity += (fl.baseIntensity * flicker * 0.5 - fl.light.intensity) * 0.12;
-                if (fl.bulb && fl.bulb.material) {
+                if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined) {
                     const base = fl.bulb.userData?.baseEmissive ?? 0.8;
                     fl.bulb.material.emissiveIntensity = base * (0.4 + 0.6 * flicker);
                 }
@@ -986,7 +960,7 @@ export class Game {
                 const flicker = 0.6 + 0.4 * Math.sin(time * 0.001 * fl.speed + fl.phase);
                 const target = fl.baseIntensity * (0.5 + 0.5 * flicker);
                 fl.light.intensity += (target - fl.light.intensity) * 0.05;
-                if (fl.bulb && fl.bulb.material) {
+                if (fl.bulb && fl.bulb.material && fl.bulb.material.emissiveIntensity !== undefined) {
                     const base = fl.bulb.userData?.baseEmissive ?? 0.8;
                     fl.bulb.material.emissiveIntensity = base * (0.6 + 0.4 * flicker);
                 }
@@ -1298,8 +1272,8 @@ export class Game {
         white.style.opacity = '0';
         this.currentLevel = nextLevel;
         this.generateLevel(nextLevel);
-        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
-        else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'The Sewers'), 300);
+        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodlands'), 300);
+        else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'Null Sewers'), 300);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
         if (this.realismPass) {
