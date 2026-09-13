@@ -44,7 +44,7 @@ function createSewerWallTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#3a4238';
+    ctx.fillStyle = '#2a3228';
     ctx.fillRect(0, 0, 512, 512);
 
     const bw = 100, bh = 55;
@@ -52,12 +52,12 @@ function createSewerWallTexture() {
         for (let x = 0; x < 512; x += bw) {
             const offset = (Math.floor(y / bh) % 2) * (bw / 2);
             const px = x + offset - bw / 2;
-            const shade = 50 + Math.random() * 30;
-            const g = shade + Math.random() * 12;
-            ctx.fillStyle = `rgb(${shade},${g},${shade - 5})`;
+            const shade = 36 + Math.random() * 22;
+            const g = shade + Math.random() * 10;
+            ctx.fillStyle = `rgb(${shade},${g},${shade - 4})`;
             ctx.fillRect(px + 2, y + 2, bw - 4, bh - 4);
             for (let i = 0; i < 18; i++) {
-                ctx.fillStyle = `rgba(40, ${80 + Math.random() * 40}, 40, ${0.15 + Math.random() * 0.35})`;
+                ctx.fillStyle = `rgba(30, ${60 + Math.random() * 30}, 30, ${0.15 + Math.random() * 0.35})`;
                 ctx.fillRect(
                     px + 2 + Math.random() * (bw - 10),
                     y + 2 + Math.random() * (bh - 10),
@@ -72,8 +72,8 @@ function createSewerWallTexture() {
         const sy = Math.random() * 512;
         const len = 30 + Math.random() * 120;
         const grad = ctx.createLinearGradient(sx, sy, sx, sy + len);
-        grad.addColorStop(0, `rgba(20, 30, 20, ${0.2 + Math.random() * 0.4})`);
-        grad.addColorStop(1, 'rgba(20, 30, 20, 0)');
+        grad.addColorStop(0, `rgba(15, 22, 15, ${0.2 + Math.random() * 0.4})`);
+        grad.addColorStop(1, 'rgba(15, 22, 15, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(sx - 3, sy, 6, len);
     }
@@ -83,8 +83,8 @@ function createSewerWallTexture() {
         const cy = Math.random() * 512;
         const r = 20 + Math.random() * 60;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0, `rgba(10, 20, 10, ${0.2 + Math.random() * 0.3})`);
-        grad.addColorStop(1, 'rgba(10, 20, 10, 0)');
+        grad.addColorStop(0, `rgba(8, 15, 8, ${0.2 + Math.random() * 0.3})`);
+        grad.addColorStop(1, 'rgba(8, 15, 8, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
@@ -101,25 +101,25 @@ function createSewerFloorTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#2a3630';
+    ctx.fillStyle = '#1e2620'; 
     ctx.fillRect(0, 0, 512, 512);
 
     const tile = 64;
     for (let y = 0; y < 512; y += tile) {
         for (let x = 0; x < 512; x += tile) {
-            const shade = 30 + Math.random() * 20;
-            ctx.fillStyle = `rgb(${shade},${shade + 8},${shade - 2})`;
+            const shade = 22 + Math.random() * 14;
+            ctx.fillStyle = `rgb(${shade},${shade + 6},${shade - 2})`;
             ctx.fillRect(x + 1, y + 1, tile - 2, tile - 2);
 
             for (let i = 0; i < 15; i++) {
-                ctx.fillStyle = `rgba(30, ${70 + Math.random() * 50}, 40, ${0.1 + Math.random() * 0.3})`;
+                ctx.fillStyle = `rgba(25, ${55 + Math.random() * 40}, 32, ${0.1 + Math.random() * 0.3})`;
                 ctx.fillRect(
                     x + Math.random() * tile, y + Math.random() * tile,
                     3 + Math.random() * 10, 3 + Math.random() * 8
                 );
             }
 
-            ctx.strokeStyle = `rgba(5, 10, 5, 0.5)`;
+            ctx.strokeStyle = `rgba(4, 8, 4, 0.55)`;
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, tile, tile);
         }
@@ -130,8 +130,8 @@ function createSewerFloorTexture() {
         const cy = Math.random() * 512;
         const r = 15 + Math.random() * 50;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0, `rgba(20, 60, 40, ${0.15 + Math.random() * 0.25})`);
-        grad.addColorStop(1, 'rgba(20, 60, 40, 0)');
+        grad.addColorStop(0, `rgba(15, 45, 30, ${0.15 + Math.random() * 0.25})`);
+        grad.addColorStop(1, 'rgba(15, 45, 30, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
@@ -148,11 +148,11 @@ function createSewerCeilTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#1a221c';
+    ctx.fillStyle = '#0f1410';
     ctx.fillRect(0, 0, 512, 512);
 
     for (let i = 0; i < 200; i++) {
-        ctx.fillStyle = `rgba(${10 + Math.random() * 20}, ${25 + Math.random() * 30}, ${15 + Math.random() * 20}, ${0.2 + Math.random() * 0.4})`;
+        ctx.fillStyle = `rgba(${8 + Math.random() * 14}, ${20 + Math.random() * 22}, ${12 + Math.random() * 16}, ${0.2 + Math.random() * 0.4})`;
         ctx.beginPath();
         ctx.arc(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 4, 0, Math.PI * 2);
         ctx.fill();
@@ -163,8 +163,8 @@ function createSewerCeilTexture() {
         const cy = Math.random() * 512;
         const r = 40 + Math.random() * 80;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0, `rgba(30, 70, 40, ${0.1 + Math.random() * 0.15})`);
-        grad.addColorStop(1, 'rgba(30, 70, 40, 0)');
+        grad.addColorStop(0, `rgba(20, 45, 28, ${0.08 + Math.random() * 0.12})`);
+        grad.addColorStop(1, 'rgba(20, 45, 28, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
@@ -245,8 +245,8 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
         if (!wallMatCache[key]) {
             wallMatCache[key] = new THREE.MeshStandardMaterial({
                 map: wallTexs[variant],
-                roughness: 0.7 + Math.random() * 0.15,
-                metalness: 0.08 + Math.random() * 0.05,
+                roughness: 0.85 + Math.random() * 0.08,  
+                metalness: 0.02 + Math.random() * 0.02,
                 color: new THREE.Color(brightness, brightness, brightness)
             });
         }
@@ -266,7 +266,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
                 else if (y === size) { cellX = x; cellY = size - 1; }
                 else { cellX = x; cellY = y - 1; }
                 const d = dist[cellY]?.[cellX] ?? 0;
-                const brightness = 0.2 + 0.8 * (1 - d / maxDistGlobal);
+                const brightness = 0.15 + 0.47 * (1 - d / maxDistGlobal);
                 const px = (x - half) * tileSize;
                 const pz = (y - half - 0.5) * tileSize;
                 const wall = new THREE.Mesh(hWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -290,7 +290,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
                 else if (x === size) { cellX = size - 1; cellY = y; }
                 else { cellX = x - 1; cellY = y; }
                 const d = dist[cellY]?.[cellX] ?? 0;
-                const brightness = 0.2 + 0.8 * (1 - d / maxDistGlobal);
+                const brightness = 0.15 + 0.47 * (1 - d / maxDistGlobal);
                 const px = (x - half - 0.5) * tileSize;
                 const pz = (y - half) * tileSize;
                 const wall = new THREE.Mesh(vWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -313,7 +313,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
             clipBias: 0.003,
             textureWidth: 512,
             textureHeight: 512,
-            color: 0x224430
+            color: 0x0f1e16  
         });
         waterReflector.rotation.x = -Math.PI / 2;
         waterReflector.position.y = 0.05;
@@ -321,7 +321,7 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     } catch (err) {
         console.warn('[Map3] Reflector failed, using fallback', err);
         const fallbackMat = new THREE.MeshStandardMaterial({
-            color: 0x1a3a28, roughness: 0.2, metalness: 0.6, side: THREE.DoubleSide
+            color: 0x101e16, roughness: 0.3, metalness: 0.5, side: THREE.DoubleSide
         });
         const fallback = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), fallbackMat);
         fallback.rotation.x = -Math.PI / 2;
@@ -330,9 +330,9 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     }
 
     const tintMat = new THREE.MeshBasicMaterial({
-        color: 0x0f2418,
+        color: 0x081410,
         transparent: true,
-        opacity: 0.42,
+        opacity: 0.28, 
         depthWrite: false
     });
     const tintPlane = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), tintMat);
@@ -340,8 +340,8 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     tintPlane.position.y = 0.06;
     group.add(tintPlane);
 
-    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2a3028, roughness: 0.6, metalness: 0.5 });
-    const pipeMat2 = new THREE.MeshStandardMaterial({ color: 0x1e2820, roughness: 0.75, metalness: 0.3 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x1a201c, roughness: 0.7, metalness: 0.4 });
+    const pipeMat2 = new THREE.MeshStandardMaterial({ color: 0x121a14, roughness: 0.8, metalness: 0.25 });
 
     for (let i = 0; i < 18; i++) {
         const x = Math.floor(Math.random() * size);
@@ -359,29 +359,29 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
     }
 
     const housingMat = new THREE.MeshStandardMaterial({
-        color: 0x1a221c,
-        roughness: 0.7,
-        metalness: 0.6
+        color: 0x10140f,
+        roughness: 0.75,
+        metalness: 0.5
     });
     const tubeMat = new THREE.MeshStandardMaterial({
-        color: 0x90ff99,
-        emissive: 0x40aa60,
-        emissiveIntensity: 1.15,
-        roughness: 0.4,
-        metalness: 0.3
+        color: 0x6acc7a,
+        emissive: 0x2a7a40,
+        emissiveIntensity: 0.65,  
+        roughness: 0.5,
+        metalness: 0.2
     });
 
     const lightSources = [];
     const flickerLights = [];
 
     for (let y = 0; y < size; y += 2) {
-        let cursorX = 1 + Math.floor(Math.random() * 2); 
+        let cursorX = 1 + Math.floor(Math.random() * 2);
         while (cursorX < size - 2) {
             const remaining = size - 1 - cursorX;
             if (remaining < 2) break;
 
             const maxLen = Math.min(remaining, 6);
-            const len = 2 + Math.floor(Math.random() * (maxLen - 1)); 
+            const len = 2 + Math.floor(Math.random() * (maxLen - 1));
 
             const centerCellX = cursorX + (len - 1) / 2;
             const px = (centerCellX - half) * tileSize;
@@ -399,26 +399,25 @@ export function generateMap3(scene, size, wallHeight, tileSize) {
             tube.position.set(px, wallHeight - 0.17, pz);
             group.add(tube);
 
-            const light = new THREE.PointLight(0x66ff88, 0.85, 7 + len * 1.6, 1.35);
-            light.position.set(px, wallHeight - 0.38, pz);
+            const light = new THREE.PointLight(0x55cc77, 0.32, 3.5 + len * 0.8, 1.3);
+            light.position.set(px, wallHeight - 0.5, pz);
             group.add(light);
 
-            lightSources.push({ light, position: new THREE.Vector3(px, wallHeight - 0.38, pz) });
+            lightSources.push({ light, position: new THREE.Vector3(px, wallHeight - 0.5, pz) });
             flickerLights.push({
                 light,
                 bulb: tube,
                 phase: Math.random() * 100,
                 speed: 0.5 + Math.random() * 1.5,
-                baseIntensity: 0.55 + Math.random() * 0.35
+                baseIntensity: 0.28 + Math.random() * 0.15
             });
 
             cursorX += len;
-
             if (Math.random() < 0.3) cursorX += 1;
         }
     }
 
-    const exitLight = new THREE.PointLight(0xff6633, 3.5, 9, 1.5);
+    const exitLight = new THREE.PointLight(0xff6633, 2.2, 7, 1.5);
     exitLight.position.set(exitPos.x, 1.0, exitPos.z);
     group.add(exitLight);
     lightSources.push({ light: exitLight, position: new THREE.Vector3(exitPos.x, 1.0, exitPos.z) });
