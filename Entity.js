@@ -15,7 +15,7 @@ export class Entity {
             (spawnTile.y - half) * tileSize
         );
 
-        this.speed = 3.2;  
+        this.speed = 3.2; 
         this.killRadius = 0.85;
         this.visionRange = 22;
         this.hearingRange = 14;
@@ -80,7 +80,6 @@ export class Entity {
         const dx = end.x - cx, dy = end.y - cy;
         const steps = Math.max(Math.abs(dx), Math.abs(dy));
         if (steps === 0) return true;
-
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
             const nx = Math.round(start.x + dx * t);
@@ -100,12 +99,10 @@ export class Entity {
         const size = this.size;
         const data = this.mazeData;
         if (startTile.x === goalTile.x && startTile.y === goalTile.y) return [];
-
         const visited = Array.from({ length: size }, () => Array(size).fill(false));
         const parent = Array.from({ length: size }, () => Array(size).fill(null));
         const queue = [{ x: startTile.x, y: startTile.y }];
         visited[startTile.y][startTile.x] = true;
-
         let qi = 0, found = false;
         while (qi < queue.length) {
             const { x, y } = queue[qi++];
@@ -125,20 +122,15 @@ export class Entity {
             }
         }
         if (!found) return [];
-
         const path = [];
         let cur = { x: goalTile.x, y: goalTile.y };
-        while (parent[cur.y][cur.x]) {
-            path.unshift(cur);
-            cur = parent[cur.y][cur.x];
-        }
+        while (parent[cur.y][cur.x]) { path.unshift(cur); cur = parent[cur.y][cur.x]; }
         return path;
     }
 
     update(dt, playerPos, playerFlashlightOn, playerJustJumped, playerSanity, gameTime) {
         if (!this.isActive) return;
 
-        // Sprite animation
         this.frameTime += dt;
         if (this.frameTime >= this.frameDuration) {
             this.frameTime -= this.frameDuration;
@@ -146,25 +138,22 @@ export class Entity {
             this.spriteMat.map = this.frames[this.frameIndex];
             this.spriteMat.needsUpdate = true;
         }
+
         this.sprite.position.set(this.position.x, this.sprite.scale.y / 2, this.position.z);
 
-        const distToPlayer = Math.hypot(playerPos.x - this.position.x, playerPos.z - this.position.z);
+        const dx = playerPos.x - this.position.x;
+        const dz = playerPos.z - this.position.z;
+        const distToPlayer = Math.hypot(dx, dz);
         const sanityBelowF = playerSanity < 16;
 
         let sensed = false;
-
-        if (sanityBelowF) {
-            sensed = true;
-        } else if (playerFlashlightOn && distToPlayer < this.visionRange && this.hasLineOfSight(playerPos)) {
-            sensed = true;
-        } else if (playerJustJumped && distToPlayer < this.hearingRange) {
-            sensed = true;
-        }
+        if (sanityBelowF) sensed = true;
+        else if (playerFlashlightOn && distToPlayer < this.visionRange && this.hasLineOfSight(playerPos)) sensed = true;
+        else if (playerJustJumped && distToPlayer < this.hearingRange) sensed = true;
 
         if (sensed) {
             const playerTile = this.worldToTile(playerPos.x, playerPos.z);
             if (playerJustJumped && !playerFlashlightOn && !sanityBelowF) {
-                // Hearing is imprecise
                 const ox = Math.floor((Math.random() - 0.5) * 3);
                 const oy = Math.floor((Math.random() - 0.5) * 3);
                 this.lastKnownPlayerTile = {
@@ -179,8 +168,8 @@ export class Entity {
 
         if (this.lastKnownPlayerTile && !sanityBelowF) {
             const et = this.worldToTile(this.position.x, this.position.z);
-            const reachedTarget = (et.x === this.lastKnownPlayerTile.x && et.y === this.lastKnownPlayerTile.y);
-            if (reachedTarget && (gameTime - this.lastSenseTime) > this.giveUpTime) {
+            const reached = (et.x === this.lastKnownPlayerTile.x && et.y === this.lastKnownPlayerTile.y);
+            if (reached && (gameTime - this.lastSenseTime) > this.giveUpTime) {
                 this.lastKnownPlayerTile = null;
                 this.currentPath = [];
                 this.pathIndex = 0;
@@ -198,21 +187,19 @@ export class Entity {
         if (this.currentPath.length > 0 && this.pathIndex < this.currentPath.length) {
             const nextTile = this.currentPath[this.pathIndex];
             const target = this.tileToWorld(nextTile.x, nextTile.y);
-            const dx = target.x - this.position.x;
-            const dz = target.z - this.position.z;
-            const d = Math.hypot(dx, dz);
+            const tdx = target.x - this.position.x;
+            const tdz = target.z - this.position.z;
+            const d = Math.hypot(tdx, tdz);
             if (d < 0.12) {
                 this.pathIndex++;
             } else {
                 const move = Math.min(this.speed * dt, d);
-                this.position.x += (dx / d) * move;
-                this.position.z += (dz / d) * move;
+                this.position.x += (tdx / d) * move;
+                this.position.z += (tdz / d) * move;
             }
         }
 
-        if (distToPlayer < this.killRadius && this.onKill) {
-            this.onKill();
-        }
+        if (distToPlayer < this.killRadius && this.onKill) this.onKill();
     }
 
     dispose() {
