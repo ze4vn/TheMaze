@@ -15,15 +15,15 @@ export class Entity {
             (spawnTile.y - half) * tileSize
         );
 
-        this.speed = 3.2; 
-        this.killRadius = 0.85;
+        this.speed = 3.2;
+        this.killRadius = 0.95;
         this.visionRange = 22;
         this.hearingRange = 14;
 
         this.frames = [];
         this.frameIndex = 0;
         this.frameTime = 0;
-        this.frameDuration = 0.5;
+        this.frameDuration = 0.1;
 
         const loader = new THREE.TextureLoader();
         for (let i = 1; i <= 4; i++) {
@@ -41,9 +41,17 @@ export class Entity {
             depthTest: true
         });
         this.sprite = new THREE.Sprite(this.spriteMat);
-        const spriteHeight = 2.0;
-        this.sprite.scale.set(1.8, spriteHeight, 1.0);
-        this.sprite.position.set(this.position.x, spriteHeight / 2, this.position.z);
+
+        this.baseWidth = 3.2;
+        this.baseHeight = 3.6;
+        this.minScale = 0.85;
+        this.maxScale = 1.15;
+        this.sizeTimer = 0;
+        this.sizeInterval = 0.2; 
+        this.scaleFactor = 1.0;
+
+        this.sprite.scale.set(this.baseWidth, this.baseHeight, 1.0);
+        this.sprite.position.set(this.position.x, this.baseHeight / 2, this.position.z);
         scene.add(this.sprite);
 
         this.currentPath = [];
@@ -65,7 +73,6 @@ export class Entity {
             y: Math.round(z / this.tileSize + this.half)
         };
     }
-
     tileToWorld(tx, ty) {
         return {
             x: (tx - this.half) * this.tileSize,
@@ -139,7 +146,16 @@ export class Entity {
             this.spriteMat.needsUpdate = true;
         }
 
-        this.sprite.position.set(this.position.x, this.sprite.scale.y / 2, this.position.z);
+        this.sizeTimer += dt;
+        if (this.sizeTimer >= this.sizeInterval) {
+            this.sizeTimer -= this.sizeInterval;
+
+            this.scaleFactor = this.minScale + Math.random() * (this.maxScale - this.minScale);
+        }
+        const w = this.baseWidth * this.scaleFactor;
+        const h = this.baseHeight * this.scaleFactor;
+        this.sprite.scale.set(w, h, 1.0);
+        this.sprite.position.set(this.position.x, h / 2, this.position.z);
 
         const dx = playerPos.x - this.position.x;
         const dz = playerPos.z - this.position.z;
