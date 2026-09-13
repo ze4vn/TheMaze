@@ -57,26 +57,18 @@
     <div id="schizoOverlay"></div>
 
     <div id="deathOverlay">
-        <div id="deathRedOverlay"></div>
         <div id="deathWhiteFlash"></div>
+        <div id="deathBlackFade"></div>
         <div id="deathContent">
-            <h1 id="deathTitle">You Have Died.</h1>
-            <div class="death-sub" id="deathSub">Your time has run out.</div>
+            <div id="deathEntityWrap">
+                <img id="deathEntityImg" src="e1.png" alt="" />
+            </div>
+            <h1 id="deathTitle">You Died</h1>
             <div id="deathButtons">
                 <button id="btnRespawn">Respawn</button>
                 <button id="btnMainMenu">Main Menu</button>
                 <button id="btnRestartLevels">Restart Levels</button>
             </div>
-        </div>
-    </div>
-
-    <div id="entityKillOverlay">
-        <img id="entityKillFrame" src="e1.png" alt="" />
-        <div class="entity-kill-text">The Entity Has Killed You.</div>
-        <div id="entityKillButtons">
-            <button id="btnEntityRespawn">Respawn</button>
-            <button id="btnEntityMainMenu">Main Menu</button>
-            <button id="btnEntityRestart">Restart Levels</button>
         </div>
     </div>
 
