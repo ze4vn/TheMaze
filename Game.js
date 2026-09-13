@@ -12,7 +12,7 @@ import { Entity } from './Entity.js';
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
-const PLAYER_RADIUS = 0.30;
+const PLAYER_RADIUS = 0.30; 
 const WALL_MARGIN = 0.18;
 const GRAVITY = -22;
 const JUMP_SPEED = 6.0;
