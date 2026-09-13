@@ -13,10 +13,7 @@ export class GameScreen {
         this.deathContent = document.getElementById('deathContent');
         this.deathTitle = document.getElementById('deathTitle');
         this.deathButtons = document.getElementById('deathButtons');
-        this.deathEntityWrap = document.getElementById('deathEntityWrap');
-        this.deathEntityImg = document.getElementById('deathEntityImg');
         this._titleTimeout = null;
-        this._entityFrameInterval = null;
     }
 
     formatTime(seconds) {
@@ -48,7 +45,6 @@ export class GameScreen {
         this.sanityLetter.textContent = level;
         this.sanityLetter.className = '';
         if (v <= 16) {
-
             this.sanityLetter.classList.add('level-below-f');
             this.sanityCircle.classList.add('danger');
         } else {
@@ -75,14 +71,13 @@ export class GameScreen {
         this._titleTimeout = setTimeout(() => this.levelTitleContainer.classList.remove('visible'), 3500);
     }
 
-    showDeathOverlay(isEntityKill) {
+    showDeathOverlay() {
         const overlay = this.deathOverlay;
         const white = this.deathWhite;
         const black = this.deathBlack;
         const content = this.deathContent;
         const title = this.deathTitle;
         const buttons = this.deathButtons;
-        const entityWrap = this.deathEntityWrap;
 
         overlay.classList.add('active');
         white.classList.remove('on', 'off');
@@ -90,7 +85,6 @@ export class GameScreen {
         content.classList.remove('show');
         title.classList.remove('anim');
         buttons.classList.remove('visible');
-        entityWrap.classList.remove('show');
         void overlay.offsetWidth;
 
         white.classList.add('on');
@@ -102,20 +96,6 @@ export class GameScreen {
         setTimeout(() => {
             black.classList.add('on');
         }, 180);
-
-        if (isEntityKill) {
-            setTimeout(() => {
-                entityWrap.classList.add('show');
-                const frames = ['e1.png', 'e2.png', 'e3.png', 'e4.png'];
-                let f = 0;
-                this.deathEntityImg.src = frames[0];
-                if (this._entityFrameInterval) clearInterval(this._entityFrameInterval);
-                this._entityFrameInterval = setInterval(() => {
-                    f = (f + 1) % frames.length;
-                    this.deathEntityImg.src = frames[f];
-                }, 100);
-            }, 800);
-        }
 
         setTimeout(() => {
             content.classList.add('show');
@@ -134,10 +114,5 @@ export class GameScreen {
         this.deathContent.classList.remove('show');
         this.deathTitle.classList.remove('anim');
         this.deathButtons.classList.remove('visible');
-        this.deathEntityWrap.classList.remove('show');
-        if (this._entityFrameInterval) {
-            clearInterval(this._entityFrameInterval);
-            this._entityFrameInterval = null;
-        }
     }
 }
