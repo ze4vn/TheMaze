@@ -9,8 +9,6 @@ import { generateMap1 } from './GameMap1.js';
 import { generateMap2 } from './GameMap2.js';
 import { Entity } from './Entity.js';
 
-//ALL Things are possible through Christ Our One And Only TRUE God
-
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
@@ -34,6 +32,16 @@ const SANITY_DRAIN_DARKNESS = 0.18;
 const SANITY_REGEN_NEAR_LIGHT = 6.5;
 const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
+
+const FLASH_ANGLE_NORMAL = Math.PI / 4;
+const FLASH_ANGLE_ZOOMED = Math.PI / 14;
+const FLASH_DIST_NORMAL = 26;
+const FLASH_DIST_ZOOMED = 55;
+const FLASH_PENUMBRA_NORMAL = 0.7;
+const FLASH_PENUMBRA_ZOOMED = 0.35;
+const FLASH_INTENSITY_NORMAL = 60;
+const FLASH_INTENSITY_ZOOMED = 95;
+const FLASH_ZOOM_STEP = 0.12;  
 
 class SoundManager {
     constructor() {
@@ -136,6 +144,8 @@ export class Game {
         this.flickerPhase = 0;
         this.FLICKER_DURATION = 0.5;
 
+        this.flashlightZoom = 0;
+
         this.entity = null;
         this.playerJustJumped = false;
         this.playerJumpHeardTimer = 0;
@@ -156,6 +166,7 @@ export class Game {
         this.onMouseMove = this.onMouseMove.bind(this);
         this.onPointerLockChange = this.onPointerLockChange.bind(this);
         this.onClick = this.onClick.bind(this);
+        this.onWheel = this.onWheel.bind(this);
     }
 
     init() {
@@ -170,7 +181,6 @@ export class Game {
         this.prevTime = performance.now();
         this.animate(this.prevTime);
 
-        // Start map 1 ambiance
         this.sound.loop('map1', true);
 
         setTimeout(() => {
@@ -217,11 +227,18 @@ export class Game {
         this.scene.add(new THREE.AmbientLight(0x0a0a0e, 0.25));
         this.scene.add(new THREE.HemisphereLight(0x1a1a22, 0x08080a, 0.18));
 
-        const flashlight = new THREE.SpotLight(0xfff2df, 60, 26, Math.PI / 4.0, 0.7, 1.6);
+        const flashlight = new THREE.SpotLight(
+            0xfff2df,
+            FLASH_INTENSITY_NORMAL,
+            FLASH_DIST_NORMAL,
+            FLASH_ANGLE_NORMAL,
+            FLASH_PENUMBRA_NORMAL,
+            1.6
+        );
         flashlight.castShadow = true;
         flashlight.shadow.mapSize.set(2048, 2048);
         flashlight.shadow.camera.near = 0.1;
-        flashlight.shadow.camera.far = 28;
+        flashlight.shadow.camera.far = FLASH_DIST_NORMAL + 2;
         flashlight.shadow.bias = -0.0012;
         flashlight.shadow.normalBias = 0.025;
         flashlight.map = this.createFlashlightTexture();
@@ -359,6 +376,7 @@ export class Game {
         document.addEventListener('mousemove', this.onMouseMove);
         document.addEventListener('pointerlockchange', this.onPointerLockChange);
         this.renderer.domElement.addEventListener('click', this.onClick);
+        this.renderer.domElement.addEventListener('wheel', this.onWheel, { passive: false });
 
         document.getElementById('btnRespawn').addEventListener('click', () => this.respawn());
         document.getElementById('btnMainMenu').addEventListener('click', () => this.goToMainMenu());
@@ -395,6 +413,19 @@ export class Game {
         this.smoothHeadTilt += (this.headTilt - this.smoothHeadTilt) * 0.08;
         this.mouseSpeed = Math.sqrt(e.movementX * e.movementX + e.movementY * e.movementY) * 0.02;
     }
+
+    onWheel(e) {
+        e.preventDefault();
+        if (!this.isLocked || this.isDead || this.isTransitioning) return;
+        if (e.deltaY < 0) {
+
+            this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
+        } else {
+
+            this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
+        }
+    }
+
     onPointerLockChange() {
         this.isLocked = document.pointerLockElement === this.renderer.domElement;
     }
@@ -428,6 +459,7 @@ export class Game {
         this.isSchizo = false;
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
+        this.flashlightZoom = 0; 
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.sanity);
         this.screen.updateStaminaUI(this.stamina, this.sanity);
@@ -501,7 +533,7 @@ export class Game {
         this._bloodageActive = false;
         this.sound.play('death');
 
-        this.screen.showDeathOverlay(cause === 'entity');
+        this.screen.showDeathOverlay();
     }
 
     respawn() {
@@ -513,6 +545,7 @@ export class Game {
         this.sanity = 100;
         this.stamina = MAX_STAMINA;
         this.gameTime = START_TIME;
+        this.flashlightZoom = 0;
         this.screen.updateTimerUI(this.gameTime);
         this.cameraGroup.position.set(this.spawnX, this.playerHeight, this.spawnZ);
         this.camera.position.set(0, 0, 0);
@@ -537,6 +570,7 @@ export class Game {
         this.gameTime = START_TIME;
         this.currentLevel = 0;
         this.isDead = false;
+        this.flashlightZoom = 0;
         this.generateLevel(0);
         this.sanity = 100;
         this.stamina = MAX_STAMINA;
@@ -560,6 +594,7 @@ export class Game {
         this.gameTime = START_TIME;
         this.sanity = 100;
         this.stamina = MAX_STAMINA;
+        this.flashlightZoom = 0;
         this.currentLevel = 0;
         this.generateLevel(0);
         this.prevTime = performance.now();
@@ -580,7 +615,6 @@ export class Game {
             if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
         }
 
-        // ── Bloodage trigger (last 2 min OR sanity at F / below-F) ──
         if (!this.isDead) {
             const shouldPlay = (this.gameTime < 120 || this.sanity <= 16);
             if (shouldPlay && !this._bloodageActive) {
@@ -628,7 +662,8 @@ export class Game {
             document.getElementById('infoContent').innerHTML =
                 `<span class="label">Coordinates</span> > ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}<br>` +
                 `<span class="label">Time Remaining</span> > ${this.screen.formatTime(this.gameTime)}<br>` +
-                `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.sanity)} (${Math.round(this.sanity)}%)`;
+                `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.sanity)} (${Math.round(this.sanity)}%)<br>` +
+                `<span class="label">Flashlight Focus</span> > ${Math.round(this.flashlightZoom * 100)}%`;
         }
 
         this.composer.render();
@@ -960,9 +995,27 @@ export class Game {
         this.flashlight.target.position.copy(this.smoothFlashTarget);
         this.lensBounce.position.copy(this.smoothFlashPos).addScaledVector(this._flashDir, 0.1);
 
-        let targetIntensity = this.flashlightOn ? 60 : 0;
+        // ── APPLY ZOOM TO BEAM SHAPE (smoothly lerped) ──
+        const z = this.flashlightZoom;
+        const targetAngle = FLASH_ANGLE_NORMAL + (FLASH_ANGLE_ZOOMED - FLASH_ANGLE_NORMAL) * z;
+        const targetDistance = FLASH_DIST_NORMAL + (FLASH_DIST_ZOOMED - FLASH_DIST_NORMAL) * z;
+        const targetPenumbra = FLASH_PENUMBRA_NORMAL + (FLASH_PENUMBRA_ZOOMED - FLASH_PENUMBRA_NORMAL) * z;
+        const baseIntensity = FLASH_INTENSITY_NORMAL + (FLASH_INTENSITY_ZOOMED - FLASH_INTENSITY_NORMAL) * z;
+
+        this.flashlight.angle += (targetAngle - this.flashlight.angle) * 0.18;
+        this.flashlight.distance += (targetDistance - this.flashlight.distance) * 0.18;
+        this.flashlight.penumbra += (targetPenumbra - this.flashlight.penumbra) * 0.18;
+
+        // Extend shadow far as beam reaches further
+        const shadowFar = this.flashlight.distance + 2;
+        if (Math.abs(this.flashlight.shadow.camera.far - shadowFar) > 0.5) {
+            this.flashlight.shadow.camera.far = shadowFar;
+            this.flashlight.shadow.camera.updateProjectionMatrix();
+        }
+
+        let targetIntensity = this.flashlightOn ? baseIntensity : 0;
         if (this.isFlickering) {
-            targetIntensity = this.flashlightOn ? (Math.random() > 0.5 ? 0 : 60) : 0;
+            targetIntensity = this.flashlightOn ? (Math.random() > 0.5 ? 0 : baseIntensity) : 0;
             this.flickerPhase += 0.05;
             if (this.flickerPhase > this.FLICKER_DURATION) {
                 this.isFlickering = false;
