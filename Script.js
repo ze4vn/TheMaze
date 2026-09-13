@@ -45,7 +45,6 @@ window.__stopMenuMusic = () => {
     menuAudio.pause();
     menuAudio.currentTime = 0;
 };
-
 function playIntro() {
     return new Promise((resolve) => {
         setTimeout(() => { introBlack.classList.add('show'); }, 400);
@@ -104,7 +103,7 @@ function showToast(msg) {
 
 let creditsRunning = false;
 
-function playCreditsAndExit() {
+function showCredits(closeAfter) {
     if (creditsRunning) return;
     creditsRunning = true;
 
@@ -117,8 +116,8 @@ function playCreditsAndExit() {
         try { a.pause(); a.currentTime = 0; } catch (e) {}
     });
 
+    creditsScreen.classList.remove('fade-out');
     creditsScreen.classList.add('active');
-
     void creditsScreen.offsetWidth;
     creditsScreen.classList.add('visible');
 
@@ -139,11 +138,29 @@ function playCreditsAndExit() {
         creditsText.classList.add('scrolling');
         creditsText.style.top = endTop + 'px';
 
-        setTimeout(tryCloseWindow, 27500);
+        setTimeout(() => {
+            creditsRunning = false;
+
+            if (closeAfter) {
+                hardClose();
+            } else {
+
+                creditsScreen.classList.add('fade-out');
+                setTimeout(() => {
+                    creditsScreen.classList.remove('active', 'visible', 'fade-out');
+                    creditsText.classList.remove('scrolling');
+                    creditsText.style.top = '100%';
+
+                    menu.classList.remove('hidden');
+                    menuParallaxActive = true;
+                    menuAudio.play().catch(() => {});
+                }, 850);
+            }
+        }, 27500);
     }, 300);
 }
 
-function tryCloseWindow() {
+function hardClose() {
 
     try {
         if (window.pywebview && window.pywebview.api && window.pywebview.api.close_app) {
@@ -153,22 +170,20 @@ function tryCloseWindow() {
     } catch (e) {}
 
     try {
-        window.close();
+        window.open('', '_self', '');
     } catch (e) {}
 
+    let attempts = 0;
+    const tryClose = () => {
+        try { window.close(); } catch (e) {}
+        try { self.close(); } catch (e) {}
+        attempts++;
+        if (attempts < 20) setTimeout(tryClose, 50);
+    };
+    tryClose();
     setTimeout(() => {
-
-        const msg = document.createElement('div');
-        msg.style.cssText = [
-            'position:fixed', 'inset:0', 'background:#000',
-            'display:flex', 'align-items:center', 'justify-content:center',
-            'color:#fff', 'font-family:"Times New Roman",serif',
-            'font-size:24px', 'letter-spacing:6px', 'text-align:center',
-            'padding:40px', 'z-index:99999999'
-        ].join(';');
-        msg.textContent = 'You may now close this tab.';
-        document.body.appendChild(msg);
-    }, 400);
+        try { window.location.href = 'about:blank'; } catch (e) {}
+    }, 300);
 }
 
 let game = null;
@@ -236,11 +251,9 @@ btnSettings.addEventListener('click', () => {
     showToast('Settings — coming soon');
 });
 
-btnCredits.addEventListener('click', () => {
-    showToast('Credits — see Exit or check the Logs panel');
-});
+btnCredits.addEventListener('click', () => showCredits(false));
 
-btnExit.addEventListener('click', playCreditsAndExit);
+btnExit.addEventListener('click', () => showCredits(true));
 
 (async function boot() {
     await playIntro();
