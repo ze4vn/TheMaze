@@ -19,6 +19,9 @@ const logsBtn = document.getElementById('logsBtn');
 const logsPanel = document.getElementById('logsPanel');
 const logsClose = document.getElementById('logsClose');
 
+const creditsScreen = document.getElementById('creditsScreen');
+const creditsText = document.getElementById('creditsText');
+
 const gameOverlay = document.getElementById('gameOverlay');
 
 const menuAudio = new Audio('MainMenu.mp3');
@@ -45,13 +48,9 @@ window.__stopMenuMusic = () => {
 
 function playIntro() {
     return new Promise((resolve) => {
-
         setTimeout(() => { introBlack.classList.add('show'); }, 400);
-
         setTimeout(() => { introText.classList.add('show'); }, 1600);
-
         setTimeout(() => { introSequence.classList.add('fadeOut'); }, 3600);
-
         setTimeout(() => {
             introSequence.style.display = 'none';
             resolve();
@@ -71,7 +70,7 @@ document.addEventListener('mousemove', (e) => {
     mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
     mouseNY = (e.clientY / window.innerHeight) * 2 - 1;
     targetRotY = mouseNX * 3.2;
-    targetRotX = -mouseNY * 2.4; 
+    targetRotX = -mouseNY * 2.4;
 });
 
 function parallaxLoop() {
@@ -101,6 +100,75 @@ function showToast(msg) {
     toast.classList.add('show');
     clearTimeout(window.__toastTimeout);
     window.__toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+let creditsRunning = false;
+
+function playCreditsAndExit() {
+    if (creditsRunning) return;
+    creditsRunning = true;
+
+    window.__stopMenuMusic();
+    menuParallaxActive = false;
+    menu.classList.add('hidden');
+    logsPanel.classList.remove('open');
+
+    document.querySelectorAll('audio').forEach(a => {
+        try { a.pause(); a.currentTime = 0; } catch (e) {}
+    });
+
+    creditsScreen.classList.add('active');
+
+    void creditsScreen.offsetWidth;
+    creditsScreen.classList.add('visible');
+
+    creditsText.classList.remove('scrolling');
+    creditsText.style.top = '100%';
+    void creditsText.offsetWidth;
+
+    setTimeout(() => {
+        const scrollArea = creditsScreen.querySelector('.credits-scroll-area');
+        const areaHeight = scrollArea.clientHeight;
+        const textHeight = creditsText.offsetHeight;
+
+        creditsText.style.top = areaHeight + 'px';
+        void creditsText.offsetWidth;
+
+        const endTop = -textHeight - 40;
+
+        creditsText.classList.add('scrolling');
+        creditsText.style.top = endTop + 'px';
+
+        setTimeout(tryCloseWindow, 27500);
+    }, 300);
+}
+
+function tryCloseWindow() {
+
+    try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.close_app) {
+            window.pywebview.api.close_app();
+            return;
+        }
+    } catch (e) {}
+
+    try {
+        window.close();
+    } catch (e) {}
+
+    setTimeout(() => {
+
+        const msg = document.createElement('div');
+        msg.style.cssText = [
+            'position:fixed', 'inset:0', 'background:#000',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'color:#fff', 'font-family:"Times New Roman",serif',
+            'font-size:24px', 'letter-spacing:6px', 'text-align:center',
+            'padding:40px', 'z-index:99999999'
+        ].join(';');
+        msg.textContent = 'You may now close this tab.';
+        document.body.appendChild(msg);
+    }, 400);
 }
 
 let game = null;
@@ -154,11 +222,9 @@ async function startGame() {
     });
 
     await fillBar(4000);
-
     await gameInitPromise;
 
     clearInterval(dotsInterval);
-
     loadingScreen.classList.remove('active');
 
     setTimeout(() => { isStarting = false; }, 500);
@@ -171,27 +237,14 @@ btnSettings.addEventListener('click', () => {
 });
 
 btnCredits.addEventListener('click', () => {
-    showToast('Credits — coming soon');
+    showToast('Credits — see Exit or check the Logs panel');
 });
 
-btnExit.addEventListener('click', () => {
-    if (confirm('Exit The Maze V?')) {
-        window.close();
-
-        setTimeout(() => {
-            document.body.innerHTML =
-                '<div style="position:fixed;inset:0;background:#000;display:flex;' +
-                'align-items:center;justify-content:center;color:#fff;' +
-                "font-family:'Times New Roman',serif;font-size:24px;letter-spacing:6px;" +
-                'text-align:center;padding:40px;">You may now close this tab.</div>';
-        }, 200);
-    }
-});
+btnExit.addEventListener('click', playCreditsAndExit);
 
 (async function boot() {
     await playIntro();
     menu.classList.remove('hidden');
     menuParallaxActive = true;
-
     menuAudio.play().catch(() => {});
 })();
