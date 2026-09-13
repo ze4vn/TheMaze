@@ -33,9 +33,12 @@ const SANITY_REGEN_NEAR_LIGHT = 6.5;
 const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
+// ── ENTITY LIGHT FLICKER ──
+const ENTITY_LIGHT_FLASH_RADIUS = 10;   // how close entity must be to a light to flicker it
+const ENTITY_LIGHT_TOGGLE_MIN = 0.05;   // min toggle chance per frame
+const ENTITY_LIGHT_TOGGLE_MAX = 0.22;   // max toggle chance per frame (at closest)
+
 // ── FLASHLIGHT ZOOM LEVELS ──
-// Normal: angle = π/4 (45°), distance = 26, penumbra = 0.7, intensity = 60
-// Zoomed: angle = π/14 (~13°), distance = 55, penumbra = 0.35, intensity = 90
 const FLASH_ANGLE_NORMAL = Math.PI / 4;
 const FLASH_ANGLE_ZOOMED = Math.PI / 14;
 const FLASH_DIST_NORMAL = 26;
@@ -44,7 +47,7 @@ const FLASH_PENUMBRA_NORMAL = 0.7;
 const FLASH_PENUMBRA_ZOOMED = 0.35;
 const FLASH_INTENSITY_NORMAL = 60;
 const FLASH_INTENSITY_ZOOMED = 95;
-const FLASH_ZOOM_STEP = 0.12;   // how much each wheel notch changes zoom
+const FLASH_ZOOM_STEP = 0.12;
 
 // ── SOUND MANAGER ──
 class SoundManager {
@@ -148,7 +151,6 @@ export class Game {
         this.flickerPhase = 0;
         this.FLICKER_DURATION = 0.5;
 
-        // ── FLASHLIGHT ZOOM (0 = normal, 1 = max focused) ──
         this.flashlightZoom = 0;
 
         this.entity = null;
@@ -419,15 +421,12 @@ export class Game {
         this.mouseSpeed = Math.sqrt(e.movementX * e.movementX + e.movementY * e.movementY) * 0.02;
     }
 
-    // ── FLASHLIGHT ZOOM ON SCROLL ──
     onWheel(e) {
         e.preventDefault();
         if (!this.isLocked || this.isDead || this.isTransitioning) return;
         if (e.deltaY < 0) {
-            // Scroll UP → tighten beam (longer, brighter, smaller)
             this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
         } else {
-            // Scroll DOWN → back toward normal (wider)
             this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
         }
     }
@@ -466,7 +465,18 @@ export class Game {
         this.isSchizo = false;
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
-        this.flashlightZoom = 0;   // reset zoom on new level
+        this.flashlightZoom = 0;
+
+        // ── Clone bulb materials so each can flicker independently ──
+        for (const fl of this.flickerLights) {
+            if (fl.bulb && fl.bulb.material) {
+                fl.bulb.material = fl.bulb.material.clone();
+                fl.bulb.userData.baseEmissive = fl.bulb.material.emissiveIntensity;
+            }
+            fl.entityFlashOn = true;
+            fl.entityFlashActive = false;
+        }
+
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.sanity);
         this.screen.updateStaminaUI(this.stamina, this.sanity);
@@ -526,6 +536,56 @@ export class Game {
         this.entity = new Entity(this.scene, this.mazeData, this.currentSize,
             this.currentHalf, tileSize, wallHeight, spawnTile);
         this.entity.onKill = () => this.triggerDeath('entity');
+    }
+
+    // ── ENTITY LIGHT FLICKER ──
+    // Nearby roof lights randomly flick on/off while the entity is close.
+    updateEntityLightFlicker(dt) {
+        const entityNear = this.entity && this.entity.isActive && !this.isDead && !this.isTransitioning;
+
+        for (const fl of this.flickerLights) {
+            if (!fl.light) continue;
+
+            let proximity = 0;
+            if (entityNear) {
+                const dx = this.entity.position.x - fl.light.position.x;
+                const dz = this.entity.position.z - fl.light.position.z;
+                const d = Math.hypot(dx, dz);
+                if (d < ENTITY_LIGHT_FLASH_RADIUS) {
+                    proximity = 1 - d / ENTITY_LIGHT_FLASH_RADIUS; // 0..1
+                }
+            }
+
+            if (proximity > 0) {
+                fl.entityFlashActive = true;
+                // Higher proximity → more likely to toggle each frame
+                const toggleChance = ENTITY_LIGHT_TOGGLE_MIN +
+                    (ENTITY_LIGHT_TOGGLE_MAX - ENTITY_LIGHT_TOGGLE_MIN) * proximity;
+                if (Math.random() < toggleChance) {
+                    fl.entityFlashOn = !fl.entityFlashOn;
+                }
+
+                if (!fl.entityFlashOn) {
+                    // Flick OFF — hard cut
+                    fl.light.intensity = 0;
+                    if (fl.bulb && fl.bulb.material) {
+                        fl.bulb.material.emissiveIntensity = 0.0;
+                    }
+                } else {
+                    // Flick ON — boost a bit when entity close
+                    const boost = 1.0 + proximity * 0.9;
+                    fl.light.intensity = fl.baseIntensity * boost;
+                    if (fl.bulb && fl.bulb.material) {
+                        const base = fl.bulb.userData.baseEmissive ?? 0.8;
+                        fl.bulb.material.emissiveIntensity = base * boost;
+                    }
+                }
+            } else if (fl.entityFlashActive) {
+                // Entity left — restore to normal
+                fl.entityFlashActive = false;
+                fl.entityFlashOn = true;
+            }
+        }
     }
 
     // ── DEATH ──
@@ -625,7 +685,6 @@ export class Game {
             if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
         }
 
-        // ── Bloodage trigger (last 2 min OR sanity at F / below-F) ──
         if (!this.isDead) {
             const shouldPlay = (this.gameTime < 120 || this.sanity <= 16);
             if (shouldPlay && !this._bloodageActive) {
@@ -651,6 +710,9 @@ export class Game {
             this.entity.update(dt, this.cameraGroup.position, this.flashlightOn,
                 this.playerJustJumped, this.sanity, this.gameTime);
         }
+
+        // ── Entity-induced roof light flicker (runs AFTER normal flicker) ──
+        this.updateEntityLightFlicker(dt);
 
         // Entity sound
         if (this.entity && this.entity.isActive && !this.isDead) {
@@ -736,8 +798,14 @@ export class Game {
                 this.realismPass.uniforms.distortion.value = 0.15 + 0.25 * schizoIntensity;
             }
             for (const fl of this.flickerLights) {
+                // Only do the schizo-driven flicker if the entity is NOT flickering this light
+                if (fl.entityFlashActive) continue;
                 const flicker = 0.05 + 0.95 * (0.5 + 0.5 * Math.sin(time * 0.025 + fl.phase + this.schizoTimer * 4));
                 fl.light.intensity += (fl.baseIntensity * flicker * 0.5 - fl.light.intensity) * 0.12;
+                if (fl.bulb && fl.bulb.material) {
+                    const base = fl.bulb.userData?.baseEmissive ?? 0.8;
+                    fl.bulb.material.emissiveIntensity = base * (0.4 + 0.6 * flicker);
+                }
             }
             if (this.flashlightOn && Math.random() < 0.12) this.flashlight.intensity *= (0.3 + Math.random() * 0.7);
             if (this.realismPass) {
@@ -759,9 +827,15 @@ export class Game {
             }
             this.schizoTimer = 0;
             for (const fl of this.flickerLights) {
+                // Only do normal calm flicker if entity is NOT flickering this light
+                if (fl.entityFlashActive) continue;
                 const flicker = 0.6 + 0.4 * Math.sin(time * 0.001 * fl.speed + fl.phase);
                 const target = fl.baseIntensity * (0.5 + 0.5 * flicker);
                 fl.light.intensity += (target - fl.light.intensity) * 0.05;
+                if (fl.bulb && fl.bulb.material) {
+                    const base = fl.bulb.userData?.baseEmissive ?? 0.8;
+                    fl.bulb.material.emissiveIntensity = base * (0.6 + 0.4 * flicker);
+                }
             }
         }
     }
@@ -1009,7 +1083,6 @@ export class Game {
         this.flashlight.target.position.copy(this.smoothFlashTarget);
         this.lensBounce.position.copy(this.smoothFlashPos).addScaledVector(this._flashDir, 0.1);
 
-        // ── APPLY ZOOM TO BEAM SHAPE (smoothly lerped) ──
         const z = this.flashlightZoom;
         const targetAngle = FLASH_ANGLE_NORMAL + (FLASH_ANGLE_ZOOMED - FLASH_ANGLE_NORMAL) * z;
         const targetDistance = FLASH_DIST_NORMAL + (FLASH_DIST_ZOOMED - FLASH_DIST_NORMAL) * z;
@@ -1020,7 +1093,6 @@ export class Game {
         this.flashlight.distance += (targetDistance - this.flashlight.distance) * 0.18;
         this.flashlight.penumbra += (targetPenumbra - this.flashlight.penumbra) * 0.18;
 
-        // Extend shadow far as beam reaches further
         const shadowFar = this.flashlight.distance + 2;
         if (Math.abs(this.flashlight.shadow.camera.far - shadowFar) > 0.5) {
             this.flashlight.shadow.camera.far = shadowFar;
