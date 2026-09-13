@@ -18,7 +18,7 @@ export class Entity {
         this.speed = 3.2;
         this.killRadius = 0.95;
         this.visionRange = 22;
-        this.hearingRange = 14;
+        this.hearingRange = 999;  
 
         this.frames = [];
         this.frameIndex = 0;
@@ -47,12 +47,21 @@ export class Entity {
         this.minScale = 0.85;
         this.maxScale = 1.15;
         this.sizeTimer = 0;
-        this.sizeInterval = 0.2; 
+        this.sizeInterval = 0.2;
         this.scaleFactor = 1.0;
 
         this.sprite.scale.set(this.baseWidth, this.baseHeight, 1.0);
         this.sprite.position.set(this.position.x, this.baseHeight / 2, this.position.z);
         scene.add(this.sprite);
+
+        this.tiltTimer = 0;
+        this.tiltInterval = 0.4;
+        this.tiltTarget = 0;
+        this.tiltCurrent = 0;
+
+        this.stepTimer = 0;
+        this.stepInterval = 0.35;  
+        this.stepDistance = 1.3; 
 
         this.currentPath = [];
         this.pathIndex = 0;
@@ -135,6 +144,27 @@ export class Entity {
         return path;
     }
 
+    doStep() {
+        let remaining = this.stepDistance;
+        while (remaining > 0 && this.currentPath.length > 0 && this.pathIndex < this.currentPath.length) {
+            const nextTile = this.currentPath[this.pathIndex];
+            const target = this.tileToWorld(nextTile.x, nextTile.y);
+            const dx = target.x - this.position.x;
+            const dz = target.z - this.position.z;
+            const d = Math.hypot(dx, dz);
+            if (d <= remaining) {
+                this.position.x = target.x;
+                this.position.z = target.z;
+                remaining -= d;
+                this.pathIndex++;
+            } else {
+                this.position.x += (dx / d) * remaining;
+                this.position.z += (dz / d) * remaining;
+                remaining = 0;
+            }
+        }
+    }
+
     update(dt, playerPos, playerFlashlightOn, playerJustJumped, playerSanity, gameTime) {
         if (!this.isActive) return;
 
@@ -149,7 +179,6 @@ export class Entity {
         this.sizeTimer += dt;
         if (this.sizeTimer >= this.sizeInterval) {
             this.sizeTimer -= this.sizeInterval;
-
             this.scaleFactor = this.minScale + Math.random() * (this.maxScale - this.minScale);
         }
         const w = this.baseWidth * this.scaleFactor;
@@ -157,6 +186,16 @@ export class Entity {
         this.sprite.scale.set(w, h, 1.0);
         this.sprite.position.set(this.position.x, h / 2, this.position.z);
 
+        this.tiltTimer += dt;
+        if (this.tiltTimer >= this.tiltInterval) {
+            this.tiltTimer -= this.tiltInterval;
+            const tilts = [-0.4, 0.4];
+            this.tiltTarget = tilts[Math.floor(Math.random() * tilts.length)];
+        }
+        this.tiltCurrent += (this.tiltTarget - this.tiltCurrent) * 0.3;
+        this.spriteMat.rotation = this.tiltCurrent;
+
+        // Senses
         const dx = playerPos.x - this.position.x;
         const dz = playerPos.z - this.position.z;
         const distToPlayer = Math.hypot(dx, dz);
@@ -165,11 +204,12 @@ export class Entity {
         let sensed = false;
         if (sanityBelowF) sensed = true;
         else if (playerFlashlightOn && distToPlayer < this.visionRange && this.hasLineOfSight(playerPos)) sensed = true;
-        else if (playerJustJumped && distToPlayer < this.hearingRange) sensed = true;
+        else if (playerJustJumped) sensed = true;   // ALWAYS hears jumps
 
         if (sensed) {
             const playerTile = this.worldToTile(playerPos.x, playerPos.z);
             if (playerJustJumped && !playerFlashlightOn && !sanityBelowF) {
+                // Jump location with slight noise
                 const ox = Math.floor((Math.random() - 0.5) * 3);
                 const oy = Math.floor((Math.random() - 0.5) * 3);
                 this.lastKnownPlayerTile = {
@@ -182,6 +222,7 @@ export class Entity {
             this.lastSenseTime = gameTime;
         }
 
+        // Give up if reached last known spot
         if (this.lastKnownPlayerTile && !sanityBelowF) {
             const et = this.worldToTile(this.position.x, this.position.z);
             const reached = (et.x === this.lastKnownPlayerTile.x && et.y === this.lastKnownPlayerTile.y);
@@ -192,6 +233,7 @@ export class Entity {
             }
         }
 
+        // Repath
         this.repathTimer += dt;
         if (this.repathTimer >= this.repathInterval && this.lastKnownPlayerTile) {
             this.repathTimer = 0;
@@ -200,21 +242,14 @@ export class Entity {
             this.pathIndex = 0;
         }
 
-        if (this.currentPath.length > 0 && this.pathIndex < this.currentPath.length) {
-            const nextTile = this.currentPath[this.pathIndex];
-            const target = this.tileToWorld(nextTile.x, nextTile.y);
-            const tdx = target.x - this.position.x;
-            const tdz = target.z - this.position.z;
-            const d = Math.hypot(tdx, tdz);
-            if (d < 0.12) {
-                this.pathIndex++;
-            } else {
-                const move = Math.min(this.speed * dt, d);
-                this.position.x += (tdx / d) * move;
-                this.position.z += (tdz / d) * move;
-            }
+        // ── Teleport-stutter movement: hold still, then lurch ──
+        this.stepTimer += dt;
+        if (this.stepTimer >= this.stepInterval) {
+            this.stepTimer -= this.stepInterval;
+            this.doStep();
         }
 
+        // Kill
         if (distToPlayer < this.killRadius && this.onKill) this.onKill();
     }
 
