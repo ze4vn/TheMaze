@@ -10,6 +10,8 @@ import { generateMap2 } from './GameMap2.js';
 import { generateMap3 } from './GameMap3.js';
 import { Entity } from './Entity.js';
 
+//more soon
+
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
