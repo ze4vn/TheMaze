@@ -9,6 +9,8 @@ import { generateMap1 } from './GameMap1.js';
 import { generateMap2 } from './GameMap2.js';
 import { Entity } from './Entity.js';
 
+//ALL Things are possible through Christ Our One And Only TRUE God
+
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
 const tileSize = 2.8;
@@ -168,6 +170,7 @@ export class Game {
         this.prevTime = performance.now();
         this.animate(this.prevTime);
 
+        // Start map 1 ambiance
         this.sound.loop('map1', true);
 
         setTimeout(() => {
@@ -577,8 +580,9 @@ export class Game {
             if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
         }
 
+        // ── Bloodage trigger (last 2 min OR sanity at F / below-F) ──
         if (!this.isDead) {
-            const shouldPlay = (this.gameTime < 120 || this.sanity < 30);
+            const shouldPlay = (this.gameTime < 120 || this.sanity <= 16);
             if (shouldPlay && !this._bloodageActive) {
                 this._bloodageActive = true;
                 this.sound.loop('bloodage', true);
