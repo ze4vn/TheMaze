@@ -33,6 +33,9 @@ const SANITY_REGEN_NEAR_LIGHT = 6.5;
 const LIGHT_DETECTION_RADIUS = 5.5;
 const START_TIME = 300;
 
+// ── FLASHLIGHT ZOOM LEVELS ──
+// Normal: angle = π/4 (45°), distance = 26, penumbra = 0.7, intensity = 60
+// Zoomed: angle = π/14 (~13°), distance = 55, penumbra = 0.35, intensity = 90
 const FLASH_ANGLE_NORMAL = Math.PI / 4;
 const FLASH_ANGLE_ZOOMED = Math.PI / 14;
 const FLASH_DIST_NORMAL = 26;
@@ -41,8 +44,9 @@ const FLASH_PENUMBRA_NORMAL = 0.7;
 const FLASH_PENUMBRA_ZOOMED = 0.35;
 const FLASH_INTENSITY_NORMAL = 60;
 const FLASH_INTENSITY_ZOOMED = 95;
-const FLASH_ZOOM_STEP = 0.12;  
+const FLASH_ZOOM_STEP = 0.12;   // how much each wheel notch changes zoom
 
+// ── SOUND MANAGER ──
 class SoundManager {
     constructor() {
         this.sounds = {
@@ -144,6 +148,7 @@ export class Game {
         this.flickerPhase = 0;
         this.FLICKER_DURATION = 0.5;
 
+        // ── FLASHLIGHT ZOOM (0 = normal, 1 = max focused) ──
         this.flashlightZoom = 0;
 
         this.entity = null;
@@ -414,14 +419,15 @@ export class Game {
         this.mouseSpeed = Math.sqrt(e.movementX * e.movementX + e.movementY * e.movementY) * 0.02;
     }
 
+    // ── FLASHLIGHT ZOOM ON SCROLL ──
     onWheel(e) {
         e.preventDefault();
         if (!this.isLocked || this.isDead || this.isTransitioning) return;
         if (e.deltaY < 0) {
-
+            // Scroll UP → tighten beam (longer, brighter, smaller)
             this.flashlightZoom = Math.min(1, this.flashlightZoom + FLASH_ZOOM_STEP);
         } else {
-
+            // Scroll DOWN → back toward normal (wider)
             this.flashlightZoom = Math.max(0, this.flashlightZoom - FLASH_ZOOM_STEP);
         }
     }
@@ -436,6 +442,7 @@ export class Game {
         }
     }
 
+    // ── LEVEL ──
     generateLevel(level) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         const result = level === 0
@@ -459,7 +466,7 @@ export class Game {
         this.isSchizo = false;
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
-        this.flashlightZoom = 0; 
+        this.flashlightZoom = 0;   // reset zoom on new level
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.sanity);
         this.screen.updateStaminaUI(this.stamina, this.sanity);
@@ -472,6 +479,7 @@ export class Game {
         this.spawnEntity();
     }
 
+    // ── ENTITY ──
     findEntitySpawnTile(playerTile, exitTile) {
         const size = this.currentSize;
         const data = this.mazeData;
@@ -520,6 +528,7 @@ export class Game {
         this.entity.onKill = () => this.triggerDeath('entity');
     }
 
+    // ── DEATH ──
     triggerDeath(cause) {
         if (this.isDead) return;
         this.isDead = true;
@@ -600,6 +609,7 @@ export class Game {
         this.prevTime = performance.now();
     }
 
+    // ── ANIMATE ──
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
@@ -615,6 +625,7 @@ export class Game {
             if (this.gameTime <= 0 && !this.isDead) this.triggerDeath('time');
         }
 
+        // ── Bloodage trigger (last 2 min OR sanity at F / below-F) ──
         if (!this.isDead) {
             const shouldPlay = (this.gameTime < 120 || this.sanity <= 16);
             if (shouldPlay && !this._bloodageActive) {
@@ -635,11 +646,13 @@ export class Game {
 
         if (!this.isTransitioning && this.gameRunning && this.isLocked) this.checkTeleporter();
 
+        // Entity update
         if (this.entity && this.entity.isActive && !this.isTransitioning && !this.isDead) {
             this.entity.update(dt, this.cameraGroup.position, this.flashlightOn,
                 this.playerJustJumped, this.sanity, this.gameTime);
         }
 
+        // Entity sound
         if (this.entity && this.entity.isActive && !this.isDead) {
             const dx = this.cameraGroup.position.x - this.entity.position.x;
             const dz = this.cameraGroup.position.z - this.entity.position.z;
@@ -656,6 +669,7 @@ export class Game {
             this.sound.loop('entity', false);
         }
 
+        // Info panel
         const p = document.getElementById('infoPanel');
         if (p.style.display === 'block') {
             const pos = this.cameraGroup.position;
