@@ -1,54 +1,53 @@
 export class GameScreen {
-    constructor(game) {
-        this.game = game;
+    constructor() {
         this.timerEl = document.getElementById('timerContainer');
         this.sanityLetter = document.getElementById('sanityLetter');
         this.sanityCircle = document.getElementById('sanityCircle');
         this.staminaBar = document.getElementById('staminaBar');
-        this.staminaContainer = document.getElementById('staminaContainer');
         this.levelTitleContainer = document.getElementById('levelTitleContainer');
         this.levelTitleMain = document.getElementById('levelTitleMain');
         this.levelTitleSub = document.getElementById('levelTitleSub');
         this.deathOverlay = document.getElementById('deathOverlay');
-        this.deathRed = document.getElementById('deathRedOverlay');
         this.deathWhite = document.getElementById('deathWhiteFlash');
+        this.deathBlack = document.getElementById('deathBlackFade');
         this.deathContent = document.getElementById('deathContent');
         this.deathTitle = document.getElementById('deathTitle');
-        this.deathSub = document.getElementById('deathSub');
-        this.flashlightHint = document.getElementById('flashlightHint');
-        this.winOverlay = document.getElementById('winOverlay');
+        this.deathButtons = document.getElementById('deathButtons');
+        this.deathEntityWrap = document.getElementById('deathEntityWrap');
+        this.deathEntityImg = document.getElementById('deathEntityImg');
         this._titleTimeout = null;
+        this._entityFrameInterval = null;
     }
 
     formatTime(seconds) {
-        const clamped = Math.max(0, seconds);
-        const mins = Math.floor(clamped / 60);
-        const secs = Math.floor(clamped % 60);
-        const ms = Math.floor((clamped % 1) * 1000);
-        return `${mins}:${secs}:${ms}`;
+        const c = Math.max(0, seconds);
+        const m = Math.floor(c / 60);
+        const s = Math.floor(c % 60);
+        const ms = Math.floor((c % 1) * 1000);
+        return `${m}:${s}:${ms}`;
     }
 
     updateTimerUI(seconds) {
         this.timerEl.textContent = this.formatTime(seconds);
         this.timerEl.classList.remove('low-time', 'critical-time');
         if (seconds <= 0) this.timerEl.classList.add('critical-time');
-        else if (seconds < 60) this.timerEl.classList.add('low-time');
+        else if (seconds < 120) this.timerEl.classList.add('low-time');
     }
 
-    getSanityLevel(value) {
-        if (value > 83) return 'A';
-        if (value > 66) return 'B';
-        if (value > 50) return 'C';
-        if (value > 33) return 'D';
-        if (value > 16) return 'E';
+    getSanityLevel(v) {
+        if (v > 83) return 'A';
+        if (v > 66) return 'B';
+        if (v > 50) return 'C';
+        if (v > 33) return 'D';
+        if (v > 16) return 'E';
         return 'F';
     }
 
-    updateSanityUI(value) {
-        const level = this.getSanityLevel(value);
+    updateSanityUI(v) {
+        const level = this.getSanityLevel(v);
         this.sanityLetter.textContent = level;
         this.sanityLetter.className = '';
-        if (value < 10) {
+        if (v < 10) {
             this.sanityLetter.classList.add('level-below-f');
             this.sanityCircle.classList.add('danger');
         } else {
@@ -57,11 +56,11 @@ export class GameScreen {
         }
     }
 
-    updateStaminaUI(value) {
-        const pct = Math.max(0, Math.min(100, (value / 160) * 100));
+    updateStaminaUI(v, sanity) {
+        const pct = Math.max(0, Math.min(100, (v / 160) * 100));
         this.staminaBar.style.width = pct + '%';
         this.staminaBar.classList.toggle('low', pct < 25);
-        if (this.game && this.game.sanity < 30) this.staminaBar.classList.add('fight-or-flight');
+        if (sanity < 30) this.staminaBar.classList.add('fight-or-flight');
         else this.staminaBar.classList.remove('fight-or-flight');
     }
 
@@ -75,34 +74,70 @@ export class GameScreen {
         this._titleTimeout = setTimeout(() => this.levelTitleContainer.classList.remove('visible'), 3500);
     }
 
-    showDeathOverlay(cause) {
-        this.deathOverlay.classList.add('active');
-        if (cause === 'time') {
-            this.deathTitle.textContent = 'Time\'s Up.';
-            this.deathSub.textContent = 'You ran out of time.';
-        } else {
-            this.deathTitle.textContent = 'You Have Died.';
-            this.deathSub.textContent = 'Your sanity crumbled.';
-        }
-        setTimeout(() => this.deathRed.classList.add('show'), 50);
+    showDeathOverlay(isEntityKill) {
+        const overlay = this.deathOverlay;
+        const white = this.deathWhite;
+        const black = this.deathBlack;
+        const content = this.deathContent;
+        const title = this.deathTitle;
+        const buttons = this.deathButtons;
+        const entityWrap = this.deathEntityWrap;
+
+        overlay.classList.add('active');
+        white.classList.remove('on', 'off');
+        black.classList.remove('on');
+        content.classList.remove('show');
+        title.classList.remove('anim');
+        buttons.classList.remove('visible');
+        entityWrap.classList.remove('show');
+
+        void overlay.offsetWidth;
+
+        white.classList.add('on');
         setTimeout(() => {
-            this.deathWhite.classList.add('flash');
-            setTimeout(() => this.deathWhite.classList.remove('flash'), 150);
-        }, 400);
-        setTimeout(() => this.deathContent.classList.add('show'), 800);
+            white.classList.remove('on');
+            white.classList.add('off');
+        }, 90);
+
+        setTimeout(() => {
+            black.classList.add('on');
+        }, 180);
+
+        if (isEntityKill) {
+            setTimeout(() => {
+                entityWrap.classList.add('show');
+                const frames = ['e1.png', 'e2.png', 'e3.png', 'e4.png'];
+                let f = 0;
+                this.deathEntityImg.src = frames[0];
+                if (this._entityFrameInterval) clearInterval(this._entityFrameInterval);
+                this._entityFrameInterval = setInterval(() => {
+                    f = (f + 1) % frames.length;
+                    this.deathEntityImg.src = frames[f];
+                }, 100);
+            }, 800);
+        }
+
+        setTimeout(() => {
+            content.classList.add('show');
+            title.classList.add('anim');
+        }, 1100);
+
+        setTimeout(() => {
+            buttons.classList.add('visible');
+        }, 2600);
     }
 
     hideDeathOverlay() {
         this.deathOverlay.classList.remove('active');
-        this.deathRed.classList.remove('show');
+        this.deathWhite.classList.remove('on', 'off');
+        this.deathBlack.classList.remove('on');
         this.deathContent.classList.remove('show');
-    }
-
-    showFlashlightHint(show) {
-        this.flashlightHint.classList.toggle('visible', show);
-    }
-
-    showWinOverlay() {
-        this.winOverlay.classList.add('active');
+        this.deathTitle.classList.remove('anim');
+        this.deathButtons.classList.remove('visible');
+        this.deathEntityWrap.classList.remove('show');
+        if (this._entityFrameInterval) {
+            clearInterval(this._entityFrameInterval);
+            this._entityFrameInterval = null;
+        }
     }
 }
