@@ -611,3 +611,8 @@ html, body {
 .credits-text.scrolling {
     transition: top 26s linear;
 }
+
+#creditsScreen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
