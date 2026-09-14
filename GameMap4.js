@@ -3,7 +3,7 @@ import { generateTunnelMaze, bfs } from './GameMap1.js';
 
 const ROOM_MIN = 5;
 const ROOM_MAX = 10;
-const DOOR_XS = [7, 8]; 
+const DOOR_XS = [7, 8];
 
 function generateLabMaze(size) {
     const grid = generateTunnelMaze(size);
@@ -18,17 +18,23 @@ function generateLabMaze(size) {
     }
 
     for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
-        grid[ROOM_MIN][x].top = true;
-        grid[ROOM_MAX][x].bottom = true;
-    }
-    for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
-        grid[y][ROOM_MIN].left = true;
-        grid[y][ROOM_MAX].right = true;
+        grid[ROOM_MIN][x].top = false;
+        if (grid[ROOM_MIN - 1]) grid[ROOM_MIN - 1][x].bottom = false;
     }
 
-    for (const dx of DOOR_XS) {
-        grid[ROOM_MAX][dx].bottom = false;
-        grid[ROOM_MAX + 1][dx].top = false;
+    for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
+        if (grid[ROOM_MAX + 1]) grid[ROOM_MAX + 1][x].top = false;
+        grid[ROOM_MAX][x].bottom = false;
+    }
+
+    for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
+        grid[y][ROOM_MIN].left = false;
+        if (grid[y][ROOM_MIN - 1]) grid[y][ROOM_MIN - 1].right = false;
+    }
+
+    for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
+        if (grid[y][ROOM_MAX + 1]) grid[y][ROOM_MAX + 1].left = false;
+        grid[y][ROOM_MAX].right = false;
     }
 
     return grid;
@@ -38,21 +44,21 @@ function createLabWallTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#cfd4d0';
+    ctx.fillStyle = '#8a918c';
     ctx.fillRect(0, 0, 512, 512);
 
     const tile = 64;
     for (let y = 0; y < 512; y += tile) {
         for (let x = 0; x < 512; x += tile) {
-            const shade = 200 + Math.random() * 30;
-            ctx.fillStyle = `rgb(${shade},${shade + 2},${shade})`;
+            const shade = 130 + Math.random() * 30;
+            ctx.fillStyle = `rgb(${shade},${shade + 3},${shade})`;
             ctx.fillRect(x + 1, y + 1, tile - 2, tile - 2);
-            ctx.strokeStyle = 'rgba(70,70,70,0.35)';
+            ctx.strokeStyle = 'rgba(50,50,50,0.45)';
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, tile, tile);
 
             for (let i = 0; i < 6; i++) {
-                ctx.fillStyle = `rgba(80,70,60,${0.03 + Math.random() * 0.08})`;
+                ctx.fillStyle = `rgba(80,70,60,${0.04 + Math.random() * 0.1})`;
                 ctx.fillRect(x + Math.random() * tile, y + Math.random() * tile,
                     2 + Math.random() * 5, 2 + Math.random() * 5);
             }
@@ -63,14 +69,14 @@ function createLabWallTexture() {
         const cx = Math.random() * 512, cy = Math.random() * 512;
         const r = 15 + Math.random() * 60;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0, `rgba(80,70,55,${0.1 + Math.random() * 0.18})`);
+        grad.addColorStop(0, `rgba(80,70,55,${0.15 + Math.random() * 0.2})`);
         grad.addColorStop(1, 'rgba(80,70,55,0)');
         ctx.fillStyle = grad;
         ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
 
     for (let i = 0; i < 12; i++) {
-        ctx.strokeStyle = `rgba(60,40,30,${0.15 + Math.random() * 0.25})`;
+        ctx.strokeStyle = `rgba(40,30,20,${0.2 + Math.random() * 0.3})`;
         ctx.lineWidth = 0.8 + Math.random() * 1.5;
         ctx.beginPath();
         let cx = Math.random() * 512, cy = Math.random() * 512;
@@ -95,21 +101,21 @@ function createLabFloorTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#b8bdb8';
+    ctx.fillStyle = '#7a807c';
     ctx.fillRect(0, 0, 512, 512);
 
     const tile = 64;
     for (let y = 0; y < 512; y += tile) {
         for (let x = 0; x < 512; x += tile) {
-            const shade = 190 + Math.random() * 20;
+            const shade = 115 + Math.random() * 25;
             ctx.fillStyle = `rgb(${shade},${shade + 3},${shade})`;
             ctx.fillRect(x + 1, y + 1, tile - 2, tile - 2);
-            ctx.strokeStyle = 'rgba(60,60,60,0.3)';
+            ctx.strokeStyle = 'rgba(40,40,40,0.4)';
             ctx.lineWidth = 1;
             ctx.strokeRect(x, y, tile, tile);
 
             for (let i = 0; i < 8; i++) {
-                ctx.fillStyle = `rgba(120,110,90,${0.02 + Math.random() * 0.06})`;
+                ctx.fillStyle = `rgba(90,80,60,${0.03 + Math.random() * 0.08})`;
                 ctx.fillRect(x + Math.random() * tile, y + Math.random() * tile,
                     2 + Math.random() * 6, 2 + Math.random() * 6);
             }
@@ -128,16 +134,16 @@ function createLabCeilTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#5a5f5a';
+    ctx.fillStyle = '#3a3f3c';
     ctx.fillRect(0, 0, 512, 512);
 
     const panelW = 128, panelH = 64;
     for (let y = 0; y < 512; y += panelH) {
         for (let x = 0; x < 512; x += panelW) {
-            const shade = 80 + Math.random() * 30;
+            const shade = 55 + Math.random() * 25;
             ctx.fillStyle = `rgb(${shade},${shade + 2},${shade})`;
             ctx.fillRect(x + 2, y + 2, panelW - 4, panelH - 4);
-            ctx.strokeStyle = 'rgba(30,30,30,0.5)';
+            ctx.strokeStyle = 'rgba(20,20,20,0.6)';
             ctx.lineWidth = 2;
             ctx.strokeRect(x + 1, y + 1, panelW - 2, panelH - 2);
         }
@@ -155,7 +161,6 @@ function createBloodPoolTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-
     ctx.clearRect(0, 0, 512, 512);
 
     function drawBlob(cx, cy, r, alpha) {
@@ -209,11 +214,7 @@ function createScratchTexture() {
         const endX = 150 + Math.random() * 60;
         const endY = 180 + Math.random() * 60;
         ctx.moveTo(startX, startY);
-        ctx.bezierCurveTo(
-            startX + 40, startY + 60,
-            endX - 40, endY - 60,
-            endX, endY
-        );
+        ctx.bezierCurveTo(startX + 40, startY + 60, endX - 40, endY - 60, endX, endY);
         ctx.stroke();
     }
 
@@ -262,7 +263,7 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     const totalSize = size * tileSize;
 
     const floorMat = new THREE.MeshStandardMaterial({
-        map: floorTex, roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide
+        map: floorTex, roughness: 0.55, metalness: 0.15, side: THREE.DoubleSide
     });
     const floorGeo = new THREE.PlaneGeometry(totalSize, totalSize);
     floorGeo.rotateX(-Math.PI / 2);
@@ -272,7 +273,7 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     group.add(floorMesh);
 
     const ceilMat = new THREE.MeshStandardMaterial({
-        map: ceilTex, roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide
+        map: ceilTex, roughness: 0.9, metalness: 0.05, side: THREE.DoubleSide
     });
     const ceilGeo = new THREE.PlaneGeometry(totalSize, totalSize);
     ceilGeo.rotateX(Math.PI / 2);
@@ -287,8 +288,8 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
         if (!wallMatCache[key]) {
             wallMatCache[key] = new THREE.MeshStandardMaterial({
                 map: wallTexs[variant],
-                roughness: 0.65,
-                metalness: 0.1,
+                roughness: 0.75,
+                metalness: 0.05,
                 color: new THREE.Color(brightness, brightness, brightness)
             });
         }
@@ -307,23 +308,21 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
         if (y < ROOM_MIN || y > ROOM_MAX) return false;
         return (x === ROOM_MIN || x === ROOM_MAX + 1);
     }
-    function isDoorWall(x, y) {
-        return (y === ROOM_MAX + 1 && DOOR_XS.includes(x));
-    }
 
     for (let y = 0; y <= size; y++) {
         for (let x = 0; x < size; x++) {
             const hasWall = (y === 0 || y === size) ? true : data[y][x].top;
             if (!hasWall) continue;
-            if (isRoomHorizontalWall(x, y)) continue; 
-            if (isDoorWall(x, y)) continue;
+            if (isRoomHorizontalWall(x, y)) continue;
 
             let cellX, cellY;
             if (y === 0) { cellX = x; cellY = 0; }
             else if (y === size) { cellX = x; cellY = size - 1; }
             else { cellX = x; cellY = y - 1; }
-            const d = distFromExit[cellY]?.[cellX] ?? 0;
-            const brightness = 0.35 + 0.55 * (1 - d / maxDistGlobal);
+            const d = distFromExit[cellY]?.[cellX];
+            const dSafe = (d === undefined || !isFinite(d)) ? 3 : d;
+            const brightness = 0.35 + 0.45 * (1 - dSafe / maxDistGlobal);
+
             const px = (x - half) * tileSize;
             const pz = (y - half - 0.5) * tileSize;
             const wall = new THREE.Mesh(hWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -348,8 +347,10 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
             if (x === 0) { cellX = 0; cellY = y; }
             else if (x === size) { cellX = size - 1; cellY = y; }
             else { cellX = x - 1; cellY = y; }
-            const d = distFromExit[cellY]?.[cellX] ?? 0;
-            const brightness = 0.35 + 0.55 * (1 - d / maxDistGlobal);
+            const d = distFromExit[cellY]?.[cellX];
+            const dSafe = (d === undefined || !isFinite(d)) ? 3 : d;
+            const brightness = 0.35 + 0.45 * (1 - dSafe / maxDistGlobal);
+
             const px = (x - half - 0.5) * tileSize;
             const pz = (y - half) * tileSize;
             const wall = new THREE.Mesh(vWallGeo, getWallMat(Math.floor(Math.random() * 3), brightness));
@@ -365,9 +366,7 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     }
 
     const barMat = new THREE.MeshStandardMaterial({
-        color: 0x1a1d22,
-        roughness: 0.45,
-        metalness: 0.9
+        color: 0x1a1d22, roughness: 0.45, metalness: 0.9
     });
     const barGeo = new THREE.CylinderGeometry(0.045, 0.045, wallHeight - 0.1, 6);
 
@@ -375,48 +374,41 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     const barsPerTile = 8;
     const step = tileSize / barsPerTile;
 
-    {
-        const z = (ROOM_MIN - half - 0.5) * tileSize;
-        for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
-            const cx = (x - half) * tileSize;
-            for (let i = 0; i < barsPerTile; i++) {
-                const ox = (i - (barsPerTile - 1) / 2) * step;
-                barPositions.push([cx + ox, z]);
-            }
+    const xW = (ROOM_MIN - half - 0.5) * tileSize;
+    const xE = (ROOM_MAX + 1 - half - 0.5) * tileSize;
+    const zN = (ROOM_MIN - half - 0.5) * tileSize;
+    const zS = (ROOM_MAX + 1 - half - 0.5) * tileSize;
+
+    for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
+        const cx = (x - half) * tileSize;
+        for (let i = 0; i < barsPerTile; i++) {
+            const ox = (i - (barsPerTile - 1) / 2) * step;
+            barPositions.push([cx + ox, zN]);
         }
     }
 
-    {
-        const z = (ROOM_MAX + 1 - half - 0.5) * tileSize;
-        for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
-            if (DOOR_XS.includes(x)) continue;
-            const cx = (x - half) * tileSize;
-            for (let i = 0; i < barsPerTile; i++) {
-                const ox = (i - (barsPerTile - 1) / 2) * step;
-                barPositions.push([cx + ox, z]);
-            }
+    for (let x = ROOM_MIN; x <= ROOM_MAX; x++) {
+        if (DOOR_XS.includes(x)) continue;
+        const cx = (x - half) * tileSize;
+        for (let i = 0; i < barsPerTile; i++) {
+            const ox = (i - (barsPerTile - 1) / 2) * step;
+            barPositions.push([cx + ox, zS]);
         }
     }
 
-    {
-        const x = (ROOM_MIN - half - 0.5) * tileSize;
-        for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
-            const cz = (y - half) * tileSize;
-            for (let i = 0; i < barsPerTile; i++) {
-                const oz = (i - (barsPerTile - 1) / 2) * step;
-                barPositions.push([x, cz + oz]);
-            }
+    for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
+        const cz = (y - half) * tileSize;
+        for (let i = 0; i < barsPerTile; i++) {
+            const oz = (i - (barsPerTile - 1) / 2) * step;
+            barPositions.push([xW, cz + oz]);
         }
     }
 
-  {
-        const x = (ROOM_MAX + 1 - half - 0.5) * tileSize;
-        for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
-            const cz = (y - half) * tileSize;
-            for (let i = 0; i < barsPerTile; i++) {
-                const oz = (i - (barsPerTile - 1) / 2) * step;
-                barPositions.push([x, cz + oz]);
-            }
+    for (let y = ROOM_MIN; y <= ROOM_MAX; y++) {
+        const cz = (y - half) * tileSize;
+        for (let i = 0; i < barsPerTile; i++) {
+            const oz = (i - (barsPerTile - 1) / 2) * step;
+            barPositions.push([xE, cz + oz]);
         }
     }
 
@@ -432,8 +424,19 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     barInstanced.instanceMatrix.needsUpdate = true;
     group.add(barInstanced);
 
-    const railMat = new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 0.5, metalness: 0.85 });
+    const cornerGeo = new THREE.BoxGeometry(0.2, wallHeight, 0.2);
+    const corners = [
+        [xW, zN], [xE, zN], [xW, zS], [xE, zS]
+    ];
+    for (const [cx, cz] of corners) {
+        const post = new THREE.Mesh(cornerGeo, barMat);
+        post.position.set(cx, wallHeight / 2, cz);
+        post.castShadow = true;
+        post.receiveShadow = true;
+        group.add(post);
+    }
 
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 0.5, metalness: 0.85 });
     function addRail(x1, z1, x2, z2) {
         const dx = x2 - x1, dz = z2 - z1;
         const len = Math.hypot(dx, dz);
@@ -443,30 +446,20 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
         m.rotation.y = Math.atan2(-dz, dx);
         m.castShadow = true;
         group.add(m);
-
         const m2 = new THREE.Mesh(geo, railMat);
         m2.position.set((x1 + x2) / 2, 0.06, (z1 + z2) / 2);
         m2.rotation.y = m.rotation.y;
         m2.castShadow = true;
         group.add(m2);
     }
-
-    const xW = (ROOM_MIN - half - 0.5) * tileSize;
-    const xE = (ROOM_MAX + 1 - half - 0.5) * tileSize;
-    const zN = (ROOM_MIN - half - 0.5) * tileSize;
-    const zS = (ROOM_MAX + 1 - half - 0.5) * tileSize;
-
-    addRail(xW, zN, xE, zN); 
-    addRail(xW, zS, xE, zS); 
-    addRail(xW, zN, xW, zS); 
-    addRail(xE, zN, xE, zS); 
+    addRail(xW, zN, xE, zN);
+    addRail(xW, zS, xE, zS);
+    addRail(xW, zN, xW, zS);
+    addRail(xE, zN, xE, zS);
 
     const bloodTex = createBloodPoolTexture();
     const bloodMat = new THREE.MeshBasicMaterial({
-        map: bloodTex,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.95
+        map: bloodTex, transparent: true, depthWrite: false, opacity: 0.95
     });
     const bloodGeo = new THREE.PlaneGeometry(14, 14);
     bloodGeo.rotateX(-Math.PI / 2);
@@ -476,18 +469,18 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     group.add(bloodMesh);
 
     const scratchTex = createScratchTexture();
-    const scratchMat = new THREE.MeshBasicMaterial({
+    const scratchMatBase = new THREE.MeshBasicMaterial({
         map: scratchTex, transparent: true, opacity: 0.9, depthWrite: false
     });
 
     const scratchPlanes = [
-        { pos: [0, wallHeight / 2, zN + 0.08], rotY: 0 }, 
+        { pos: [0, wallHeight / 2, zN + 0.08], rotY: 0 },
         { pos: [xW + 0.08, wallHeight / 2, 0], rotY: Math.PI / 2 },
         { pos: [xE - 0.08, wallHeight / 2, 0], rotY: -Math.PI / 2 }
     ];
     for (const sp of scratchPlanes) {
         for (let i = 0; i < 4; i++) {
-            const s = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), scratchMat.clone());
+            const s = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), scratchMatBase.clone());
             s.position.set(
                 sp.pos[0] + (Math.random() - 0.5) * 4,
                 sp.pos[1] + (Math.random() - 0.5) * 0.8,
@@ -503,13 +496,11 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     const leatherMat = new THREE.MeshStandardMaterial({ color: 0x3a2518, roughness: 0.85, metalness: 0.05 });
 
     const tableGroup = new THREE.Group();
-
     const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.9), tableMat);
     top.position.y = 0.95;
     top.castShadow = true;
     top.receiveShadow = true;
     tableGroup.add(top);
-
     for (const lx of [-0.9, 0.9]) {
         for (const lz of [-0.35, 0.35]) {
             const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.95, 6), tableMat);
@@ -518,14 +509,12 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
             tableGroup.add(leg);
         }
     }
-
     for (const rx of [-0.9, -0.35, 0.35, 0.9]) {
         const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.85), leatherMat);
         strap.position.set(rx, 1.02, 0);
         strap.castShadow = true;
         tableGroup.add(strap);
     }
-
     const tableBlood = new THREE.Mesh(
         new THREE.PlaneGeometry(1.6, 0.7),
         new THREE.MeshBasicMaterial({ map: bloodTex.clone(), transparent: true, opacity: 0.85, depthWrite: false })
@@ -553,10 +542,11 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     ivGroup.position.set(1.5, 0, 0.5);
     group.add(ivGroup);
 
-    const handMat = new THREE.MeshBasicMaterial({ map: scratchTex.clone(), transparent: true, opacity: 0.95, depthWrite: false });
     for (let i = 0; i < 3; i++) {
-        const hand = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), handMat);
-
+        const hand = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.6, 0.6),
+            scratchMatBase.clone()
+        );
         hand.position.set(-2 + i * 2, wallHeight * 0.55, zN + 0.09);
         hand.rotation.y = Math.PI;
         hand.renderOrder = 3;
@@ -564,35 +554,38 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     }
 
     const propList = [];
-
     for (let i = 0; i < 12; i++) {
         const x = Math.floor(Math.random() * size);
         const y = Math.floor(Math.random() * size);
         const inRoom = (x >= ROOM_MIN && x <= ROOM_MAX && y >= ROOM_MIN && y <= ROOM_MAX);
         if (inRoom) continue;
-        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        propList.push({ type: 'table', x: px, z: pz });
+        propList.push({
+            type: 'table',
+            x: (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4,
+            z: (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4
+        });
     }
-
     for (let i = 0; i < 10; i++) {
         const x = Math.floor(Math.random() * size);
         const y = Math.floor(Math.random() * size);
         const inRoom = (x >= ROOM_MIN && x <= ROOM_MAX && y >= ROOM_MIN && y <= ROOM_MAX);
         if (inRoom) continue;
-        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        propList.push({ type: 'monitor', x: px, z: pz });
+        propList.push({
+            type: 'monitor',
+            x: (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4,
+            z: (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4
+        });
     }
-
     for (let i = 0; i < 8; i++) {
         const x = Math.floor(Math.random() * size);
         const y = Math.floor(Math.random() * size);
         const inRoom = (x >= ROOM_MIN && x <= ROOM_MAX && y >= ROOM_MIN && y <= ROOM_MAX);
         if (inRoom) continue;
-        const px = (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        const pz = (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4;
-        propList.push({ type: 'cabinet', x: px, z: pz });
+        propList.push({
+            type: 'cabinet',
+            x: (x - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4,
+            z: (y - half) * tileSize + (Math.random() - 0.5) * tileSize * 0.4
+        });
     }
 
     for (const p of propList) {
@@ -650,7 +643,7 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
     const lightSources = [];
     const flickerLights = [];
 
-    const lightPanelMat = new THREE.MeshBasicMaterial({ color: 0xf6f9ff });
+    const lightPanelMat = new THREE.MeshBasicMaterial({ color: 0xdfe8f5 });
     const lightFrameMat = new THREE.MeshStandardMaterial({ color: 0x2a2e33, roughness: 0.6, metalness: 0.5 });
 
     for (let y = 0; y < size; y += 3) {
@@ -667,7 +660,7 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
             group.add(panel);
 
             const inRoom = (x >= ROOM_MIN && x <= ROOM_MAX && y >= ROOM_MIN && y <= ROOM_MAX);
-            const light = new THREE.PointLight(0xddeeff, inRoom ? 0.45 : 0.9, 6.5, 1.4);
+            const light = new THREE.PointLight(0xddeeff, inRoom ? 0.4 : 0.75, 6, 1.4);
             light.position.set(px, wallHeight - 0.35, pz);
             light.castShadow = true;
             light.shadow.mapSize.set(512, 512);
@@ -682,19 +675,18 @@ export function generateMap4(scene, size, wallHeight, tileSize) {
                 bulb: panel,
                 phase: Math.random() * 100,
                 speed: 0.5 + Math.random() * 1.5,
-                baseIntensity: inRoom ? 0.4 : 0.85
+                baseIntensity: inRoom ? 0.35 : 0.7
             });
         }
     }
 
-    const surgLight = new THREE.PointLight(0xffffff, 1.4, 5, 1.5);
+    const surgLight = new THREE.PointLight(0xffffff, 1.2, 5, 1.5);
     surgLight.position.set(0, wallHeight - 0.8, 0);
     surgLight.castShadow = true;
     surgLight.shadow.mapSize.set(1024, 1024);
     group.add(surgLight);
 
-    const surgDiskMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const surgDisk = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), surgDiskMat);
+    const surgDisk = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     surgDisk.position.set(0, wallHeight - 0.55, 0);
     surgDisk.rotation.x = -Math.PI / 2;
     group.add(surgDisk);
