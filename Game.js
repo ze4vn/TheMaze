@@ -8,6 +8,7 @@ import { GameScreen } from './GameScreen.js';
 import { generateMap1 } from './GameMap1.js';
 import { generateMap2 } from './GameMap2.js';
 import { generateMap3 } from './GameMap3.js';
+import { generateMap4 } from './GameMap4.js';
 import { Entity } from './Entity.js';
 import { GamePlayer } from './GamePlayer.js';
 
@@ -26,6 +27,7 @@ class SoundManager {
             map1: new Audio('Map1_Ambiance.mp3'),
             map2: new Audio('Map2_Ambiance.mp3'),
             map3: new Audio('Map3_Ambiance.mp3'),
+            map4: new Audio('Map4_Ambiance.mp3'),
             bloodage: new Audio('Bloodage.mp3'),
             death: new Audio('Death.mp3'),
             entity: new Audio('Entity.mp3')
@@ -33,11 +35,13 @@ class SoundManager {
         this.sounds.map1.loop = true;
         this.sounds.map2.loop = true;
         this.sounds.map3.loop = true;
+        this.sounds.map4.loop = true;
         this.sounds.bloodage.loop = true;
         this.sounds.entity.loop = true;
         this.sounds.map1.volume = 0.4;
         this.sounds.map2.volume = 0.4;
         this.sounds.map3.volume = 0.4;
+        this.sounds.map4.volume = 0.4;
         this.sounds.bloodage.volume = 0.55;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
@@ -365,9 +369,11 @@ export class Game {
             const levelNum = parseInt(match[1], 10);
             const internal = levelNum - 1;
             if (internal < 0) { console.log('[console] Invalid level number'); return; }
-            if (internal > 2) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
+            if (internal > 3) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
             this.closeConsole();
             this.teleportToLevel(internal);
+        } else if (cmd.toLowerCase() === '!help') {
+            console.log('[console] Commands:  !Level.1  !Level.2  !Level.3  !Level.4');
         } else {
             console.log(`[console] Unknown command: ${cmd}`);
         }
@@ -376,10 +382,15 @@ export class Game {
     teleportToLevel(internalLevel) {
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
+        this.player.isDead = false;
+        this.player.gameWon = false;
+        this.player.invincible = false;
         this.currentLevel = internalLevel;
         this.generateLevel(internalLevel);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
+        this.isLocked = true;
+        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
 
     onKeyDown(e) {
@@ -427,7 +438,8 @@ export class Game {
         let result;
         if (level === 0) result = generateMap1(this.scene, MAZE_SIZE, wallHeight, tileSize);
         else if (level === 1) result = generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
-        else result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        else if (level === 2) result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        else result = generateMap4(this.scene, MAZE_SIZE, wallHeight, tileSize);
 
         this.mazeGroup = result.group;
         this.mazeData = result.data;
@@ -461,12 +473,14 @@ export class Game {
 
         if (level === 1) this.screen.showLevelTitle(1, 'The Woodlands');
         else if (level === 2) this.screen.showLevelTitle(2, 'Null Sewers');
+        else if (level === 3) this.screen.showLevelTitle(3, 'The Laboratory');
 
         this.currentLevel = level;
 
         this.sound.loop('map1', level === 0);
         this.sound.loop('map2', level === 1);
         this.sound.loop('map3', level === 2);
+        this.sound.loop('map4', level === 3);
 
         this.spawnEntity();
     }
@@ -563,6 +577,7 @@ export class Game {
         this.sound.loop('map1', false);
         this.sound.loop('map2', false);
         this.sound.loop('map3', false);
+        this.sound.loop('map4', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
         this._bloodageActive = false;
@@ -583,6 +598,7 @@ export class Game {
         this.sound.loop('map1', false);
         this.sound.loop('map2', false);
         this.sound.loop('map3', false);
+        this.sound.loop('map4', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
         this._bloodageActive = false;
@@ -611,6 +627,7 @@ export class Game {
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
         this.sound.loop('map3', this.currentLevel === 2);
+        this.sound.loop('map4', this.currentLevel === 3);
     }
 
     restartLevels() {
@@ -712,6 +729,7 @@ export class Game {
             const pos = this.cameraGroup.position;
             document.getElementById('infoContent').innerHTML =
                 `<span class="label">Coordinates</span> > ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}<br>` +
+                `<span class="label">Level</span> > ${this.currentLevel + 1}<br>` +
                 `<span class="label">Time Remaining</span> > ${this.screen.formatTime(this.gameTime)}<br>` +
                 `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.player.sanity)} (${Math.round(this.player.sanity)}%)<br>` +
                 `<span class="label">Flashlight Focus</span> > ${Math.round(this.player.flashlightZoom * 100)}%`;
@@ -766,7 +784,8 @@ export class Game {
         if (dist < 1.0) {
             if (this.currentLevel === 0) this.transitionToNextLevel(1);
             else if (this.currentLevel === 1) this.transitionToNextLevel(2);
-            else if (this.currentLevel === 2) this.triggerWin();
+            else if (this.currentLevel === 2) this.transitionToNextLevel(3);
+            else if (this.currentLevel === 3) this.triggerWin();
         }
     }
 
@@ -780,6 +799,7 @@ export class Game {
         this.generateLevel(nextLevel);
         if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodlands'), 300);
         else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'Null Sewers'), 300);
+        else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Laboratory'), 300);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
         if (this.realismPass) {
