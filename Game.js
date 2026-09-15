@@ -59,7 +59,9 @@ class SoundManager {
         if (!s) return;
         try { s.pause(); s.currentTime = 0; } catch (e) {}
     }
-    stopAll() { for (const k in this.sounds) this.stop(k); }
+    stopAll() {
+        for (const k in this.sounds) this.stop(k);
+    }
     setVolume(name, v) {
         const s = this.sounds[name];
         if (s) s.volume = Math.max(0, Math.min(1, v));
@@ -103,7 +105,7 @@ export class Game {
 
         this.isLocked = false;
         this.isPaused = false;
-        this.settingsReturnTo = 'pause'; 
+        this.settingsReturnTo = 'pause';
 
         this.wallMeshes = [];
         this.wallShiftSeed = 0;
@@ -454,7 +456,6 @@ export class Game {
     }
 
     onKeyDown(e) {
-
         if (e.key === 'Escape') {
             if (this.player.isDead || this.player.gameWon || this.isTransitioning) return;
             if (document.getElementById('settingsMenu').classList.contains('active')) {
@@ -556,7 +557,7 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
 
-    generateLevel(level) {
+    generateLevel(level, startAmbiance = true) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
         this.totalSize = 0;
@@ -603,10 +604,12 @@ export class Game {
 
         this.currentLevel = level;
 
-        this.sound.loop('map1', level === 0);
-        this.sound.loop('map2', level === 1);
-        this.sound.loop('map3', level === 2);
-        this.sound.loop('map4', level === 3);
+        if (startAmbiance) {
+            this.sound.loop('map1', level === 0);
+            this.sound.loop('map2', level === 1);
+            this.sound.loop('map3', level === 2);
+            this.sound.loop('map4', level === 3);
+        }
 
         this.spawnEntity();
     }
@@ -775,11 +778,19 @@ export class Game {
     }
 
     goToMainMenu() {
+
+        this.sound.stopAll();
+        this._bloodageActive = false;
+
+        document.querySelectorAll('audio').forEach(a => {
+            try { a.pause(); a.currentTime = 0; } catch (e) {}
+        });
+
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
         document.getElementById('pauseMenu').classList.remove('active', 'visible');
         document.getElementById('settingsMenu').classList.remove('active', 'visible');
-        this.sound.stopAll();
+
         if (document.pointerLockElement) document.exitPointerLock();
         this.isLocked = false;
         this.isPaused = false;
@@ -787,19 +798,25 @@ export class Game {
         this.player.isDead = false;
         this.player.gameWon = false;
         this.player.invincible = false;
+        this.player.keys = {};
+        this.player.isSprinting = false;
         this.gameRunning = true;
         this.gameTime = START_TIME;
         this.currentLevel = 0;
-        this.generateLevel(0);
+
+        this.generateLevel(0, false);
+
         this.prevTime = performance.now();
 
         document.getElementById('mainMenu').classList.remove('hidden');
         window.__startMenuMusic && window.__startMenuMusic();
     }
+
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
         this.prevTime = time;
+
         if (this.isPaused) {
             this.composer.render();
             this.animationId = requestAnimationFrame(this.animate);
