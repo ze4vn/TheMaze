@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Settings } from './Settings.js';
 
 const tileSize = 2.8;
 const wallHeight = 3.6;
@@ -99,7 +100,7 @@ export class GamePlayer {
         this.cameraGroup = new THREE.Object3D();
         scene.add(this.cameraGroup);
 
-        this.camera = new THREE.PerspectiveCamera(84, aspect, 0.08, 100);
+        this.camera = new THREE.PerspectiveCamera(Settings.fov, aspect, 0.08, 100);
         this.camera.position.set(0, 0, 0);
         this.camera.rotation.order = 'YXZ';
         this.cameraGroup.add(this.camera);
@@ -173,6 +174,7 @@ export class GamePlayer {
         this.isDead = false;
         this.gameWon = false;
         this.invincible = false;
+        this.keys = {};
     }
 
     update(dt, time) {
@@ -349,7 +351,8 @@ export class GamePlayer {
             if (this.velocity.y > 0) this.velocity.y = 0;
         }
 
-        const targetFov = sprintActive ? 92 : (fightOrFlight ? 88 : 84);
+        const baseFov = Settings.fov;
+        const targetFov = sprintActive ? baseFov + 8 : (fightOrFlight ? baseFov + 4 : baseFov);
         if (!this.isDead) {
             this.camera.fov += (targetFov - this.camera.fov) * 0.04;
             this.camera.updateProjectionMatrix();
@@ -554,7 +557,7 @@ export class GamePlayer {
 
     handleMouseMove(e, isLocked, isTransitioning, consoleOpen) {
         if (!isLocked || isTransitioning || consoleOpen) return;
-        const sens = 0.0018;
+        const sens = 0.0018 * Settings.sensitivity;
         const dx = e.movementX * sens, dy = e.movementY * sens;
         this.yaw -= dx; this.pitch -= dy;
         this.pitch = Math.max(-Math.PI / 2 + 0.08, Math.min(Math.PI / 2 - 0.08, this.pitch));
