@@ -11,6 +11,7 @@ import { generateMap3 } from './GameMap3.js';
 import { generateMap4 } from './GameMap4.js';
 import { Entity } from './Entity.js';
 import { GamePlayer } from './GamePlayer.js';
+import { Settings } from './Settings.js';
 
 const MAZE_SIZE = 16;
 const wallHeight = 3.6;
@@ -32,17 +33,13 @@ class SoundManager {
             death: new Audio('Death.mp3'),
             entity: new Audio('Entity.mp3')
         };
-        this.sounds.map1.loop = true;
-        this.sounds.map2.loop = true;
-        this.sounds.map3.loop = true;
-        this.sounds.map4.loop = true;
-        this.sounds.bloodage.loop = true;
-        this.sounds.entity.loop = true;
+        for (const k in this.sounds) this.sounds[k].loop = true;
         this.sounds.map1.volume = 0.4;
         this.sounds.map2.volume = 0.4;
         this.sounds.map3.volume = 0.4;
         this.sounds.map4.volume = 0.4;
         this.sounds.bloodage.volume = 0.55;
+        this.sounds.death.loop = false;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
     }
@@ -54,11 +51,8 @@ class SoundManager {
     loop(name, on) {
         const s = this.sounds[name];
         if (!s) return;
-        if (on) {
-            if (s.paused) s.play().catch(() => {});
-        } else {
-            if (!s.paused) s.pause();
-        }
+        if (on) { if (s.paused) s.play().catch(() => {}); }
+        else { if (!s.paused) s.pause(); }
     }
     stop(name) {
         const s = this.sounds[name];
@@ -108,6 +102,9 @@ export class Game {
         this.gameTime = START_TIME;
 
         this.isLocked = false;
+        this.isPaused = false;
+        this.settingsReturnTo = 'pause'; 
+
         this.wallMeshes = [];
         this.wallShiftSeed = 0;
         this.lightSources = [];
@@ -146,18 +143,14 @@ export class Game {
     }
 
     init() {
-
         this.setupThree();
-
         this.player.setup(this.scene, this.cameraAspect());
         this.camera = this.player.camera;
         this.cameraGroup = this.player.cameraGroup;
-
         this.setupPostProcessing();
-
         this.setupInput();
         this.setupConsole();
-
+        this.setupPauseMenu();
         this.generateLevel(0);
 
         this.screen.updateTimerUI(this.gameTime);
@@ -169,7 +162,7 @@ export class Game {
         this.sound.loop('map1', true);
 
         setTimeout(() => {
-            if (!this.isLocked && !this.stopped && !this.consoleOpen) {
+            if (!this.isLocked && !this.stopped && !this.consoleOpen && !this.isPaused) {
                 try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
             }
         }, 600);
@@ -327,6 +320,77 @@ export class Game {
         document.getElementById('winContinue').addEventListener('click', () => this.goToMainMenu());
     }
 
+    setupPauseMenu() {
+        document.getElementById('btnResume').addEventListener('click', () => this.resume());
+        document.getElementById('btnPauseRespawn').addEventListener('click', () => {
+            this.resume();
+            this.restartLevels();
+        });
+        document.getElementById('btnPauseSettings').addEventListener('click', () => {
+            this.settingsReturnTo = 'pause';
+            this.openSettings();
+        });
+        document.getElementById('btnPauseMainMenu').addEventListener('click', () => {
+            this.resume();
+            this.goToMainMenu();
+        });
+
+        document.getElementById('btnSettingsClose').addEventListener('click', () => {
+            this.closeSettings();
+        });
+
+        const fovSlider = document.getElementById('fovSlider');
+        const fovValue = document.getElementById('fovValue');
+        const sensSlider = document.getElementById('sensSlider');
+        const sensValue = document.getElementById('sensValue');
+
+        fovSlider.value = Settings.fov;
+        fovValue.textContent = Settings.fov;
+        sensSlider.value = Settings.sensitivity;
+        sensValue.textContent = Settings.sensitivity.toFixed(2);
+
+        fovSlider.addEventListener('input', (e) => {
+            const v = parseInt(e.target.value, 10);
+            fovValue.textContent = v;
+            Settings.setFov(v);
+            if (this.player && this.player.camera) {
+                this.player.camera.fov = v;
+                this.player.camera.updateProjectionMatrix();
+            }
+        });
+        sensSlider.addEventListener('input', (e) => {
+            const v = parseFloat(e.target.value);
+            sensValue.textContent = v.toFixed(2);
+            Settings.setSensitivity(v);
+        });
+
+        window.__refreshSettingsUI = () => {
+            fovSlider.value = Settings.fov;
+            fovValue.textContent = Settings.fov;
+            sensSlider.value = Settings.sensitivity;
+            sensValue.textContent = Settings.sensitivity.toFixed(2);
+        };
+    }
+
+    openSettings() {
+        window.__refreshSettingsUI && window.__refreshSettingsUI();
+        const settings = document.getElementById('settingsMenu');
+        settings.classList.add('active');
+        void settings.offsetWidth;
+        settings.classList.add('visible');
+    }
+
+    closeSettings() {
+        const settings = document.getElementById('settingsMenu');
+        settings.classList.remove('visible');
+        setTimeout(() => {
+            settings.classList.remove('active');
+            if (this.settingsReturnTo === 'pause') {
+
+            }
+        }, 320);
+    }
+
     setupConsole() {
         this.consoleEl = document.getElementById('devConsole');
         this.consoleInput = document.getElementById('consoleInput');
@@ -342,7 +406,10 @@ export class Game {
         });
     }
 
-    toggleConsole() { if (this.consoleOpen) this.closeConsole(); else this.openConsole(); }
+    toggleConsole() {
+        if (this.isPaused) return;
+        if (this.consoleOpen) this.closeConsole(); else this.openConsole();
+    }
 
     openConsole() {
         if (this.consoleOpen) return;
@@ -357,7 +424,7 @@ export class Game {
         this.consoleOpen = false;
         this.consoleEl.classList.remove('active');
         this.consoleInput.blur();
-        if (!this.player.isDead && !this.isTransitioning && !this.player.gameWon) {
+        if (!this.player.isDead && !this.isTransitioning && !this.player.gameWon && !this.isPaused) {
             setTimeout(() => { try { this.renderer.domElement.requestPointerLock(); } catch (e) {} }, 80);
         }
     }
@@ -372,8 +439,6 @@ export class Game {
             if (internal > 3) { console.log(`[console] Level ${levelNum} not implemented yet.`); return; }
             this.closeConsole();
             this.teleportToLevel(internal);
-        } else if (cmd.toLowerCase() === '!help') {
-            console.log('[console] Commands:  !Level.1  !Level.2  !Level.3  !Level.4');
         } else {
             console.log(`[console] Unknown command: ${cmd}`);
         }
@@ -382,20 +447,31 @@ export class Game {
     teleportToLevel(internalLevel) {
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
-        this.player.isDead = false;
-        this.player.gameWon = false;
-        this.player.invincible = false;
         this.currentLevel = internalLevel;
         this.generateLevel(internalLevel);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
-        this.isLocked = true;
-        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
 
     onKeyDown(e) {
+
+        if (e.key === 'Escape') {
+            if (this.player.isDead || this.player.gameWon || this.isTransitioning) return;
+            if (document.getElementById('settingsMenu').classList.contains('active')) {
+                this.closeSettings();
+                return;
+            }
+            if (this.isPaused) {
+                this.resume();
+            } else if (this.isLocked || this.gameRunning) {
+                this.pause();
+            }
+            return;
+        }
+
         if (e.key === '`' || e.key === '~') { e.preventDefault(); this.toggleConsole(); return; }
-        if (this.consoleOpen) return;
+        if (this.consoleOpen || this.isPaused) return;
+
         this.player.onKeyDown(e, this.consoleOpen);
         if (e.key === 'i' || e.key === 'I') {
             const p = document.getElementById('infoPanel');
@@ -404,7 +480,7 @@ export class Game {
     }
 
     onKeyUp(e) {
-        if (this.consoleOpen) return;
+        if (this.consoleOpen || this.isPaused) return;
         this.player.onKeyUp(e, this.consoleOpen);
     }
 
@@ -418,16 +494,66 @@ export class Game {
     }
 
     onPointerLockChange() {
+        const wasLocked = this.isLocked;
         this.isLocked = document.pointerLockElement === this.renderer.domElement;
+
+        if (wasLocked && !this.isLocked &&
+            !this.player.isDead && !this.player.gameWon &&
+            !this.isTransitioning && this.gameRunning &&
+            !this.consoleOpen && !this.isPaused &&
+            !document.getElementById('settingsMenu').classList.contains('active')) {
+            this.pause();
+        }
     }
 
     onClick() {
-        if (this.consoleOpen) return;
+        if (this.consoleOpen || this.isPaused) return;
         if (this.player.gameWon) return;
         if (this.isLocked) this.player.toggleFlashlight();
         else if (!this.isTransitioning && !this.player.isDead) {
             try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
         }
+    }
+
+    pause() {
+        if (this.isPaused) return;
+        if (this.player.isDead || this.player.gameWon || this.isTransitioning) return;
+        this.isPaused = true;
+
+        if (document.pointerLockElement) document.exitPointerLock();
+
+        const menu = document.getElementById('pauseMenu');
+        menu.classList.add('active');
+        void menu.offsetWidth;
+        menu.classList.add('visible');
+
+        this.sound.loop('map1', false);
+        this.sound.loop('map2', false);
+        this.sound.loop('map3', false);
+        this.sound.loop('map4', false);
+        this.sound.loop('bloodage', false);
+        this.sound.loop('entity', false);
+    }
+
+    resume() {
+        if (!this.isPaused) return;
+        this.isPaused = false;
+
+        const menu = document.getElementById('pauseMenu');
+        menu.classList.remove('visible');
+        setTimeout(() => menu.classList.remove('active'), 320);
+
+        this.player.keys = {};
+        this.player.isSprinting = false;
+
+        const lvl = this.currentLevel;
+        this.sound.loop('map1', lvl === 0);
+        this.sound.loop('map2', lvl === 1);
+        this.sound.loop('map3', lvl === 2);
+        this.sound.loop('map4', lvl === 3);
+        if (this._bloodageActive) this.sound.loop('bloodage', true);
+
+        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
 
     generateLevel(level) {
@@ -473,7 +599,7 @@ export class Game {
 
         if (level === 1) this.screen.showLevelTitle(1, 'The Woodlands');
         else if (level === 2) this.screen.showLevelTitle(2, 'Null Sewers');
-        else if (level === 3) this.screen.showLevelTitle(3, 'The Laboratory');
+        else if (level === 3) this.screen.showLevelTitle(3, 'The Lab');
 
         this.currentLevel = level;
 
@@ -637,6 +763,8 @@ export class Game {
         this.player.gameWon = false;
         this.player.invincible = false;
         this.player.isDead = false;
+        this.isPaused = false;
+        document.getElementById('pauseMenu').classList.remove('active', 'visible');
         this.gameTime = START_TIME;
         this.currentLevel = 0;
         this.generateLevel(0);
@@ -649,9 +777,12 @@ export class Game {
     goToMainMenu() {
         this.screen.hideDeathOverlay();
         document.getElementById('winOverlay').classList.remove('active');
+        document.getElementById('pauseMenu').classList.remove('active', 'visible');
+        document.getElementById('settingsMenu').classList.remove('active', 'visible');
         this.sound.stopAll();
         if (document.pointerLockElement) document.exitPointerLock();
         this.isLocked = false;
+        this.isPaused = false;
 
         this.player.isDead = false;
         this.player.gameWon = false;
@@ -665,11 +796,15 @@ export class Game {
         document.getElementById('mainMenu').classList.remove('hidden');
         window.__startMenuMusic && window.__startMenuMusic();
     }
-
     animate(time) {
         if (this.stopped) return;
         const dt = Math.min((time - this.prevTime) / 1000, 0.05);
         this.prevTime = time;
+        if (this.isPaused) {
+            this.composer.render();
+            this.animationId = requestAnimationFrame(this.animate);
+            return;
+        }
 
         if (this.player.gameWon) {
             this.composer.render();
@@ -696,7 +831,6 @@ export class Game {
         }
 
         this.player.update(dt, time);
-
         this.updateMazeShifting(time, dt);
 
         if (!this.isTransitioning && this.gameRunning && this.isLocked) this.checkTeleporter();
@@ -729,7 +863,6 @@ export class Game {
             const pos = this.cameraGroup.position;
             document.getElementById('infoContent').innerHTML =
                 `<span class="label">Coordinates</span> > ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}<br>` +
-                `<span class="label">Level</span> > ${this.currentLevel + 1}<br>` +
                 `<span class="label">Time Remaining</span> > ${this.screen.formatTime(this.gameTime)}<br>` +
                 `<span class="label">Sanity</span> > ${this.screen.getSanityLevel(this.player.sanity)} (${Math.round(this.player.sanity)}%)<br>` +
                 `<span class="label">Flashlight Focus</span> > ${Math.round(this.player.flashlightZoom * 100)}%`;
@@ -799,7 +932,7 @@ export class Game {
         this.generateLevel(nextLevel);
         if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodlands'), 300);
         else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'Null Sewers'), 300);
-        else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Laboratory'), 300);
+        else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Lab'), 300);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
         if (this.realismPass) {
