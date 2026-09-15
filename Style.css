@@ -763,3 +763,19 @@ html, body {
     box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
     cursor: pointer;
 }
+
+#exitBlackFade {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 7000000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+}
+#exitBlackFade.active {
+    pointer-events: auto;
+}
+#exitBlackFade.visible {
+    opacity: 1;
+}
