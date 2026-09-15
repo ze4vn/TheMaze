@@ -21,6 +21,7 @@ const logsClose = document.getElementById('logsClose');
 
 const creditsScreen = document.getElementById('creditsScreen');
 const creditsText = document.getElementById('creditsText');
+const exitBlackFade = document.getElementById('exitBlackFade');
 
 const settingsMenu = document.getElementById('settingsMenu');
 
@@ -47,6 +48,14 @@ window.__stopMenuMusic = () => {
     menuAudio.pause();
     menuAudio.currentTime = 0;
 };
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function silenceAllAudio() {
+    document.querySelectorAll('audio').forEach(a => {
+        try { a.pause(); a.currentTime = 0; } catch (e) {}
+    });
+}
 
 function playIntro() {
     return new Promise((resolve) => {
@@ -144,60 +153,95 @@ document.getElementById('btnSettingsClose').addEventListener('click', closeSetti
 
 let creditsRunning = false;
 
-function showCredits(closeAfter) {
+function runCreditsScroll() {
+    return new Promise((resolve) => {
+        creditsScreen.classList.remove('fade-out');
+        creditsScreen.classList.add('active');
+        void creditsScreen.offsetWidth;
+        creditsScreen.classList.add('visible');
+
+        creditsText.classList.remove('scrolling');
+        creditsText.style.top = '100%';
+        void creditsText.offsetWidth;
+
+        setTimeout(() => {
+            const scrollArea = creditsScreen.querySelector('.credits-scroll-area');
+            const areaHeight = scrollArea.clientHeight;
+            const textHeight = creditsText.offsetHeight;
+
+            creditsText.style.top = areaHeight + 'px';
+            void creditsText.offsetWidth;
+
+            const endTop = -textHeight - 40;
+            creditsText.classList.add('scrolling');
+            creditsText.style.top = endTop + 'px';
+
+            setTimeout(resolve, 27500);
+        }, 300);
+    });
+}
+
+function hideCredits() {
+    creditsScreen.classList.add('fade-out');
+    setTimeout(() => {
+        creditsScreen.classList.remove('active', 'visible', 'fade-out');
+        creditsText.classList.remove('scrolling');
+        creditsText.style.top = '100%';
+    }, 850);
+}
+
+async function playCreditsAndReturn() {
     if (creditsRunning) return;
     creditsRunning = true;
 
     window.__stopMenuMusic();
     menu.classList.add('hidden');
     logsPanel.classList.remove('open');
+    silenceAllAudio();
 
-    document.querySelectorAll('audio').forEach(a => {
-        try { a.pause(); a.currentTime = 0; } catch (e) {}
-    });
+    await runCreditsScroll();
 
-    creditsScreen.classList.remove('fade-out');
-    creditsScreen.classList.add('active');
-    void creditsScreen.offsetWidth;
-    creditsScreen.classList.add('visible');
+    hideCredits();
+    await sleep(900);
 
-    creditsText.classList.remove('scrolling');
-    creditsText.style.top = '100%';
-    void creditsText.offsetWidth;
+    creditsRunning = false;
+    menu.classList.remove('hidden');
+    menuAudio.play().catch(() => {});
+}
 
-    setTimeout(() => {
-        const scrollArea = creditsScreen.querySelector('.credits-scroll-area');
-        const areaHeight = scrollArea.clientHeight;
-        const textHeight = creditsText.offsetHeight;
+let exitRunning = false;
 
-        creditsText.style.top = areaHeight + 'px';
-        void creditsText.offsetWidth;
+async function playExitSequence() {
+    if (exitRunning || creditsRunning) return;
+    exitRunning = true;
 
-        const endTop = -textHeight - 40;
+    window.__stopMenuMusic();
+    menu.classList.add('hidden');
+    logsPanel.classList.remove('open');
+    silenceAllAudio();
 
-        creditsText.classList.add('scrolling');
-        creditsText.style.top = endTop + 'px';
+    exitBlackFade.classList.add('active');
+    void exitBlackFade.offsetWidth;
+    exitBlackFade.classList.add('visible');
 
-        setTimeout(() => {
-            creditsRunning = false;
+    await sleep(1350);
 
-            if (closeAfter) {
-                hardClose();
-            } else {
-                creditsScreen.classList.add('fade-out');
-                setTimeout(() => {
-                    creditsScreen.classList.remove('active', 'visible', 'fade-out');
-                    creditsText.classList.remove('scrolling');
-                    creditsText.style.top = '100%';
-                    menu.classList.remove('hidden');
-                    menuAudio.play().catch(() => {});
-                }, 850);
-            }
-        }, 27500);
-    }, 300);
+    try {
+        const exitAudio = new Audio('exit.wav');
+        exitAudio.volume = 1.0;
+        exitAudio.loop = false;
+        exitAudio.play().catch(() => {});
+    } catch (e) {}
+
+    await sleep(1400);
+
+    await runCreditsScroll();
+
+    hardClose();
 }
 
 function hardClose() {
+
     try {
         if (window.pywebview && window.pywebview.api && window.pywebview.api.close_app) {
             window.pywebview.api.close_app();
@@ -228,7 +272,7 @@ function hardClose() {
         ].join(';');
         msg.textContent = 'Uhh There Is No Close Feature, Just Press Alt+F4';
         document.body.appendChild(msg);
-    }, 800);
+    }, 900);
 }
 
 let game = null;
@@ -294,15 +338,16 @@ btnSettings.addEventListener('click', () => {
     openSettings();
 });
 
-btnCredits.addEventListener('click', () => showCredits(false));
-btnExit.addEventListener('click', () => showCredits(true));
+btnCredits.addEventListener('click', () => {
+    playCreditsAndReturn();
+});
+
+btnExit.addEventListener('click', () => {
+    playExitSequence();
+});
 
 (async function boot() {
-    await introPlay();
-})();
-
-async function introPlay() {
     await playIntro();
     menu.classList.remove('hidden');
     menuAudio.play().catch(() => {});
-}
+})();
