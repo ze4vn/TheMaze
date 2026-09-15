@@ -113,6 +113,40 @@
         <div class="console-hint">Try: <b>!Level.1</b> &nbsp;·&nbsp; <b>!Level.2</b> &nbsp;·&nbsp; <b>!Level.3</b> &nbsp;·&nbsp; press <b>`</b> to close</div>
     </div>
 
+    <div id="pauseMenu">
+        <div class="pause-box">
+            <h1 class="pause-title">Game Is Paused</h1>
+            <button class="pause-btn" id="btnResume">Continue</button>
+            <button class="pause-btn" id="btnPauseRespawn">Respawn</button>
+            <button class="pause-btn" id="btnPauseSettings">Settings</button>
+            <button class="pause-btn" id="btnPauseMainMenu">Exit to Main Menu</button>
+        </div>
+    </div>
+
+    <div id="settingsMenu">
+        <div class="settings-box">
+            <h1 class="settings-title">Settings</h1>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>FOV</span>
+                    <span class="setting-value" id="fovValue">84</span>
+                </div>
+                <input type="range" id="fovSlider" min="60" max="120" step="1" value="84">
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Sensitivity</span>
+                    <span class="setting-value" id="sensValue">1.00</span>
+                </div>
+                <input type="range" id="sensSlider" min="0.2" max="3" step="0.05" value="1">
+            </div>
+
+            <button class="pause-btn" id="btnSettingsClose">Back</button>
+        </div>
+    </div>
+
     <div id="creditsScreen">
         <div class="credits-title">Credits</div>
         <div class="credits-scroll-area">
