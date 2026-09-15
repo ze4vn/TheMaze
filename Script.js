@@ -1,4 +1,5 @@
 import { Game } from './Game.js';
+import { Settings } from './Settings.js';
 
 const introSequence = document.getElementById('introSequence');
 const introBlack = document.getElementById('introBlack');
@@ -10,7 +11,6 @@ const loadingDots = document.getElementById('loadingDots');
 
 const menu = document.getElementById('mainMenu');
 const menuBgWrap = document.getElementById('menuBgWrap');
-const menuBg = document.getElementById('menuBg');
 const btnPlay = document.getElementById('btnPlay');
 const btnSettings = document.getElementById('btnSettings');
 const btnCredits = document.getElementById('btnCredits');
@@ -21,6 +21,8 @@ const logsClose = document.getElementById('logsClose');
 
 const creditsScreen = document.getElementById('creditsScreen');
 const creditsText = document.getElementById('creditsText');
+
+const settingsMenu = document.getElementById('settingsMenu');
 
 const gameOverlay = document.getElementById('gameOverlay');
 
@@ -70,7 +72,6 @@ document.addEventListener('mousemove', (e) => {
 });
 
 function parallaxLoop() {
-
     if (!menu.classList.contains('hidden') && menuBgWrap) {
         curRotX += (targetRotX - curRotX) * 0.08;
         curRotY += (targetRotY - curRotY) * 0.08;
@@ -82,10 +83,6 @@ function parallaxLoop() {
     requestAnimationFrame(parallaxLoop);
 }
 parallaxLoop();
-
-window.__resumeMenuParallax = () => {
-
-};
 
 logsBtn.addEventListener('click', () => logsPanel.classList.add('open'));
 logsClose.addEventListener('click', () => logsPanel.classList.remove('open'));
@@ -102,6 +99,48 @@ function showToast(msg) {
     clearTimeout(window.__toastTimeout);
     window.__toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
 }
+
+const fovSlider = document.getElementById('fovSlider');
+const fovValue = document.getElementById('fovValue');
+const sensSlider = document.getElementById('sensSlider');
+const sensValue = document.getElementById('sensValue');
+
+function refreshSettingsUI() {
+    fovSlider.value = Settings.fov;
+    fovValue.textContent = Settings.fov;
+    sensSlider.value = Settings.sensitivity;
+    sensValue.textContent = Settings.sensitivity.toFixed(2);
+}
+window.__refreshSettingsUI = refreshSettingsUI;
+
+fovSlider.addEventListener('input', (e) => {
+    const v = parseInt(e.target.value, 10);
+    fovValue.textContent = v;
+    Settings.setFov(v);
+    const g = window.__game;
+    if (g && g.player && g.player.camera) {
+        g.player.camera.fov = v;
+        g.player.camera.updateProjectionMatrix();
+    }
+});
+sensSlider.addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    sensValue.textContent = v.toFixed(2);
+    Settings.setSensitivity(v);
+});
+
+function openSettings() {
+    refreshSettingsUI();
+    settingsMenu.classList.add('active');
+    void settingsMenu.offsetWidth;
+    settingsMenu.classList.add('visible');
+}
+function closeSettings() {
+    settingsMenu.classList.remove('visible');
+    setTimeout(() => settingsMenu.classList.remove('active'), 320);
+}
+
+document.getElementById('btnSettingsClose').addEventListener('click', closeSettings);
 
 let creditsRunning = false;
 
@@ -150,7 +189,6 @@ function showCredits(closeAfter) {
                     creditsScreen.classList.remove('active', 'visible', 'fade-out');
                     creditsText.classList.remove('scrolling');
                     creditsText.style.top = '100%';
-
                     menu.classList.remove('hidden');
                     menuAudio.play().catch(() => {});
                 }, 850);
@@ -160,7 +198,6 @@ function showCredits(closeAfter) {
 }
 
 function hardClose() {
-
     try {
         if (window.pywebview && window.pywebview.api && window.pywebview.api.close_app) {
             window.pywebview.api.close_app();
@@ -180,7 +217,6 @@ function hardClose() {
     tryClose();
 
     setTimeout(() => {
-
         if (document.hidden) return;
         const msg = document.createElement('div');
         msg.style.cssText = [
@@ -217,7 +253,6 @@ async function startGame() {
     isStarting = true;
 
     window.__stopMenuMusic();
-
     menu.classList.add('hidden');
     logsPanel.classList.remove('open');
 
@@ -256,14 +291,18 @@ async function startGame() {
 btnPlay.addEventListener('click', startGame);
 
 btnSettings.addEventListener('click', () => {
-    showToast('Settings — coming soon');
+    openSettings();
 });
 
 btnCredits.addEventListener('click', () => showCredits(false));
 btnExit.addEventListener('click', () => showCredits(true));
 
 (async function boot() {
+    await introPlay();
+})();
+
+async function introPlay() {
     await playIntro();
     menu.classList.remove('hidden');
     menuAudio.play().catch(() => {});
-})();
+}
