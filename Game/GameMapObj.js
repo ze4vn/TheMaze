@@ -54,7 +54,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         return {
             group, data: fallbackData(),
             spawnPos: { x: -8, z: -8 }, exitPos: { x: 8, z: 8 },
-            entitySpawnPos: { x: 0, z: 0 },
+            entitySpawnPos: { x: 8, z: 8 },
             lightSources: [], flickerLights: [], wallMeshes: [],
             waterReflector: null, totalSize: size * tileSize
         };
@@ -63,7 +63,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const obj = _cachedOBJ.clone(true);
     group.add(obj);
 
-    // ── Marker matching (case-insensitive, supports common aliases) ──
     const SPAWN_ALIASES  = ['spawn', 'player_spawn', 'playerspawn', 'playerstart', 'player_start', 'start_point', 'startpoint', 'start'];
     const ENTITY_ALIASES = ['entityspawn', 'entity_spawn', 'entities', 'monsterspawn', 'monster_spawn', 'monster', 'enemyspawn', 'enemy_spawn', 'entity', 'enemy'];
     const EXIT_ALIASES   = ['exit', 'exit_point', 'exitpoint', 'goal', 'finish', 'end'];
@@ -106,8 +105,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         if (n.own) uniqueNames.add('own: ' + n.own);
         if (n.parent) uniqueNames.add('parent: ' + n.parent);
     }
-    console.log('[MapObj] Unique names in OBJ (showing first 50):');
-    console.log([...uniqueNames].slice(0, 50));
+    console.log('[MapObj] Unique names in OBJ (first 50):', [...uniqueNames].slice(0, 50));
 
     function centerOf(mesh) {
         if (!mesh) return null;
@@ -131,7 +129,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     );
 
     let spawnPos = centerOf(spawnMesh) || spawnDefault;
-    let entityPos = centerOf(entityMesh) || new THREE.Vector3(bboxCenter.x, 0, bboxCenter.z);
+    let entityPos = centerOf(entityMesh) || new THREE.Vector3(bbox.max.x * 0.85, 0, bbox.max.z * 0.85);
     let exitPos  = centerOf(exitMesh)  || exitDefault;
 
     spawnPos = clampToWorld(spawnPos);
@@ -143,6 +141,31 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         exitPos.x = Math.max(worldMin, Math.min(worldMax, spawnPos.x + 8));
         exitPos.z = Math.max(worldMin, Math.min(worldMax, spawnPos.z + 8));
     }
+
+    const spawnEntityDist = new THREE.Vector3().subVectors(entityPos, spawnPos).length();
+    if (spawnEntityDist < 8.0) {
+        console.warn('[MapObj] Entity spawn too close to player (' + spawnEntityDist.toFixed(1) + 'm) — pushing to opposite corner');
+        const corners = [
+            new THREE.Vector3(bbox.min.x, 0, bbox.min.z),
+            new THREE.Vector3(bbox.max.x, 0, bbox.min.z),
+            new THREE.Vector3(bbox.min.x, 0, bbox.max.z),
+            new THREE.Vector3(bbox.max.x, 0, bbox.max.z)
+        ];
+        let best = corners[0];
+        let bestDist = -1;
+        for (const c of corners) {
+            const d = c.distanceTo(spawnPos);
+            if (d > bestDist) { bestDist = d; best = c; }
+        }
+        entityPos = best.clone();
+        entityPos.x = entityPos.x * 0.9;
+        entityPos.z = entityPos.z * 0.9;
+    }
+
+    console.log('[MapObj] Final positions — spawn: [' +
+        spawnPos.x.toFixed(1) + ', ' + spawnPos.z.toFixed(1) + '] ' +
+        'entity: [' + entityPos.x.toFixed(1) + ', ' + entityPos.z.toFixed(1) + '] ' +
+        'exit: [' + exitPos.x.toFixed(1) + ', ' + exitPos.z.toFixed(1) + ']');
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
         if (!m) return;
