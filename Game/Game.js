@@ -135,6 +135,10 @@ export class Game {
 
         this._spawnProtectionTimer = 0;
 
+        this._spawnCheckPoint = new THREE.Vector3(0, 0, 0);
+        this._playerHasLeftSpawn = false;
+        this._MIN_MOVE_BEFORE_EXIT = 5.0;
+
         this.realityEffect = new RealityEffect();
 
         this.container = document.getElementById('threeContainer');
@@ -638,6 +642,8 @@ export class Game {
     }
 
     generateLevel(level, startAmbiance = true) {
+        console.log('[Game] generateLevel called with level =', level);
+
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
         this.totalSize = 0;
@@ -665,6 +671,8 @@ export class Game {
         this.totalSize = result.totalSize || (MAZE_SIZE * tileSize);
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
+
+        console.log('[Game] Level', level, '— spawn:[' + this.spawnX.toFixed(1) + ',' + this.spawnZ.toFixed(1) + '] exit:[' + this.exitX.toFixed(1) + ',' + this.exitZ.toFixed(1) + ']');
 
         for (const fl of this.flickerLights) {
             if (fl.bulb && fl.bulb.material) {
@@ -703,7 +711,10 @@ export class Game {
 
         this.spawnEntity();
 
-        this._spawnProtectionTimer = 3.0;
+        // ── Spawn protection ──
+        this._spawnProtectionTimer = 5.0;
+        this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
+        this._playerHasLeftSpawn = false;
     }
 
     findEntitySpawnTile(playerTile, exitTile) {
@@ -773,7 +784,7 @@ export class Game {
         const entRef = this.entity;
         setTimeout(() => {
             if (this.entity === entRef) this.entity.killEnabled = true;
-        }, 4000);
+        }, 5000);
     }
 
     updateEntityLightFlicker(dt) {
@@ -891,7 +902,9 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
-        this._spawnProtectionTimer = 3.0;
+        this._spawnProtectionTimer = 5.0;
+        this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
+        this._playerHasLeftSpawn = false;
 
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
@@ -972,6 +985,17 @@ export class Game {
             this._spawnProtectionTimer -= dt;
         }
 
+        if (!this._playerHasLeftSpawn) {
+            const distFromSpawn = Math.hypot(
+                this.cameraGroup.position.x - this._spawnCheckPoint.x,
+                this.cameraGroup.position.z - this._spawnCheckPoint.z
+            );
+            if (distFromSpawn > this._MIN_MOVE_BEFORE_EXIT) {
+                this._playerHasLeftSpawn = true;
+                console.log('[Game] Player has left spawn — exit is now armed');
+            }
+        }
+
         if (!this.player.isDead && this.gameRunning && !this.player.invincible) {
             this.gameTime -= dt;
             if (this.gameTime < 0) this.gameTime = 0;
@@ -1003,11 +1027,11 @@ export class Game {
                 const dxE = this.entity.position.x - this.cameraGroup.position.x;
                 const dzE = this.entity.position.z - this.cameraGroup.position.z;
                 const distE = Math.hypot(dxE, dzE);
-                if (distE < 2.0) {
+                if (distE < 3.0) {
                     const nx = distE > 0.001 ? dxE / distE : 1;
                     const nz = distE > 0.001 ? dzE / distE : 0;
-                    this.entity.position.x = this.cameraGroup.position.x + nx * 15;
-                    this.entity.position.z = this.cameraGroup.position.z + nz * 15;
+                    this.entity.position.x = this.cameraGroup.position.x + nx * 20;
+                    this.entity.position.z = this.cameraGroup.position.z + nz * 20;
                     this.entity.currentPath = [];
                     this.entity.pathIndex = 0;
                     this.entity.lastKnownPlayerTile = null;
@@ -1101,7 +1125,10 @@ export class Game {
 
     checkTeleporter() {
         if (this.isTransitioning || this.player.isDead || this.player.gameWon) return;
+
         if (this._spawnProtectionTimer > 0) return;
+        if (!this._playerHasLeftSpawn) return;
+
         const px = this.cameraGroup.position.x, pz = this.cameraGroup.position.z;
         const dist = Math.sqrt((px - this.teleporterPos.x) ** 2 + (pz - this.teleporterPos.z) ** 2);
         if (dist < 1.0) {
