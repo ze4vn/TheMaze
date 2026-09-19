@@ -1,5 +1,6 @@
 import { Game } from '../Game/Game.js';
 import { preloadMapObj } from '../Game/GameMapObj.js';
+import { preloadRealityMap } from '../Game/GameMapReality.js';
 import { Settings } from './Settings.js';
 
 const introSequence = document.getElementById('introSequence');
@@ -311,10 +312,13 @@ async function startGame() {
     const objPreload = preloadMapObj('../Map/Map1.obj').catch((e) => {
         console.warn('[startGame] OBJ preload failed:', e);
     });
+    const realityPreload = preloadRealityMap('../Map/RealityMap.obj').catch((e) => {
+        console.warn('[startGame] Reality OBJ preload failed:', e);
+    });
 
     const gameInitPromise = new Promise((resolve) => {
         setTimeout(async () => {
-            await objPreload;
+            await Promise.all([objPreload, realityPreload]);
             gameOverlay.classList.add('active');
             if (!game) {
                 game = new Game();
