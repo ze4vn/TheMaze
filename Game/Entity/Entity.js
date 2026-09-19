@@ -23,10 +23,12 @@ export class Entity {
         this.visionRange = 22;
         this.hearingRange = 14;
 
+        this.killEnabled = true;
+
         this.frames = [];
         this.frameIndex = 0;
         this.frameTime = 0;
-        this.frameDuration = 0.05; 
+        this.frameDuration = 0.05;
 
         const loader = new THREE.TextureLoader();
         for (let i = 1; i <= 6; i++) {
@@ -50,7 +52,7 @@ export class Entity {
         this.minScale = 0.85;
         this.maxScale = 1.15;
         this.sizeTimer = 0;
-        this.sizeInterval = 0.1;  
+        this.sizeInterval = 0.1;
         this.scaleFactor = 1.0;
 
         this.sprite.scale.set(this.baseWidth, this.baseHeight, 1.0);
@@ -122,7 +124,6 @@ export class Entity {
     findPath(startTile, goalTile) {
         const size = this.size;
         const data = this.mazeData;
-
         const sx = Math.max(0, Math.min(size - 1, Math.round(startTile.x)));
         const sy = Math.max(0, Math.min(size - 1, Math.round(startTile.y)));
         const gx = Math.max(0, Math.min(size - 1, Math.round(goalTile.x)));
@@ -141,16 +142,13 @@ export class Entity {
         while (qi < queue.length) {
             const { x, y } = queue[qi++];
             if (x === gx && y === gy) { found = true; break; }
-
             const cell = data[y] && data[y][x];
             if (!cell) continue;
-
             const nbs = [];
             if (!cell.top && y > 0)           nbs.push({ x,       y: y - 1 });
             if (!cell.bottom && y < size - 1) nbs.push({ x,       y: y + 1 });
             if (!cell.left && x > 0)          nbs.push({ x: x - 1, y });
             if (!cell.right && x < size - 1)  nbs.push({ x: x + 1, y });
-
             for (const d of nbs) {
                 if (d.y < 0 || d.y >= size || d.x < 0 || d.x >= size) continue;
                 if (!visited[d.y]) continue;
@@ -161,9 +159,7 @@ export class Entity {
                 }
             }
         }
-
         if (!found) return [];
-
         const path = [];
         let cur = { x: gx, y: gy };
         let guard = 0;
@@ -306,7 +302,9 @@ export class Entity {
             this.doStep();
         }
 
-        if (distToPlayer < this.killRadius && this.onKill) this.onKill();
+        if (this.killEnabled && distToPlayer < this.killRadius && this.onKill) {
+            this.onKill();
+        }
     }
 
     dispose() {
