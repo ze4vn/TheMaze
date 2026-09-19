@@ -9,10 +9,13 @@ export class Entity {
         this.tileSize = tileSize;
         this.wallHeight = wallHeight;
 
+        const sx = Math.max(0, Math.min(size - 1, Math.round(spawnTile.x)));
+        const sy = Math.max(0, Math.min(size - 1, Math.round(spawnTile.y)));
+
         this.position = new THREE.Vector3(
-            (spawnTile.x - half) * tileSize,
+            (sx - half) * tileSize,
             0,
-            (spawnTile.y - half) * tileSize
+            (sy - half) * tileSize
         );
 
         this.speed = 3.2;
@@ -23,7 +26,7 @@ export class Entity {
         this.frames = [];
         this.frameIndex = 0;
         this.frameTime = 0;
-        this.frameDuration = 0.05;   
+        this.frameDuration = 0.05; 
 
         const loader = new THREE.TextureLoader();
         for (let i = 1; i <= 6; i++) {
@@ -47,7 +50,7 @@ export class Entity {
         this.minScale = 0.85;
         this.maxScale = 1.15;
         this.sizeTimer = 0;
-        this.sizeInterval = 0.1;    
+        this.sizeInterval = 0.1;  
         this.scaleFactor = 1.0;
 
         this.sprite.scale.set(this.baseWidth, this.baseHeight, 1.0);
@@ -55,7 +58,7 @@ export class Entity {
         scene.add(this.sprite);
 
         this.tiltTimer = 0;
-        this.tiltInterval = 0.2; 
+        this.tiltInterval = 0.2;
         this.tiltTarget = 0;
         this.tiltCurrent = 0;
 
@@ -85,6 +88,7 @@ export class Entity {
             y: Math.max(0, Math.min(this.size - 1, Math.round(z / this.tileSize + this.half)))
         };
     }
+
     tileToWorld(tx, ty) {
         return {
             x: (tx - this.half) * this.tileSize,
@@ -104,6 +108,7 @@ export class Entity {
             const nx = Math.round(start.x + dx * t);
             const ny = Math.round(start.y + dy * t);
             if (nx === cx && ny === cy) continue;
+            if (!this.mazeData[cy] || !this.mazeData[cy][cx]) return false;
             const cell = this.mazeData[cy][cx];
             if (nx > cx && cell.right) return false;
             if (nx < cx && cell.left) return false;
@@ -141,8 +146,8 @@ export class Entity {
             if (!cell) continue;
 
             const nbs = [];
-            if (!cell.top && y > 0)          nbs.push({ x,     y: y - 1 });
-            if (!cell.bottom && y < size - 1) nbs.push({ x,     y: y + 1 });
+            if (!cell.top && y > 0)           nbs.push({ x,       y: y - 1 });
+            if (!cell.bottom && y < size - 1) nbs.push({ x,       y: y + 1 });
             if (!cell.left && x > 0)          nbs.push({ x: x - 1, y });
             if (!cell.right && x < size - 1)  nbs.push({ x: x + 1, y });
 
