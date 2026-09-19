@@ -43,7 +43,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         console.warn('[MapObj] No preloaded OBJ — using fallback');
         return {
             group, data: fallbackData(),
-            spawnPos: { x: 0, z: 0 }, exitPos: { x: 0, z: 0 },
+            spawnPos: { x: -10, z: -10 }, exitPos: { x: 10, z: 10 },
             entitySpawnPos: null,
             lightSources: [], flickerLights: [], wallMeshes: [],
             waterReflector: null, totalSize: size * tileSize
@@ -54,25 +54,59 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     group.add(obj);
 
     let spawnMesh = null, entityMesh = null, exitMesh = null;
+    const allNamed = [];
+
     obj.traverse((c) => {
+
+        const ownName = (c.name || '').toLowerCase();
+        const parentName = (c.parent && c.parent.name ? c.parent.name : '').toLowerCase();
+        if (ownName || parentName) allNamed.push({ own: ownName, parent: parentName });
+
         if (!c.isMesh) return;
-        const n = (c.name || '').toLowerCase();
-        if (n === 'spawn') spawnMesh = c;
-        else if (n === 'entityspawn') entityMesh = c;
-        else if (n === 'exit') exitMesh = c;
+
+        if (!spawnMesh && (ownName === 'spawn' || parentName === 'spawn')) spawnMesh = c;
+        if (!entityMesh && (ownName === 'entityspawn' || parentName === 'entityspawn')) entityMesh = c;
+        if (!exitMesh && (ownName === 'exit' || parentName === 'exit')) exitMesh = c;
     });
 
+    console.log('[MapObj] Markers found — spawn:', !!spawnMesh, 'entity:', !!entityMesh, 'exit:', !!exitMesh);
+    console.log('[MapObj] Named objects:', allNamed);
+
     function centerOf(mesh) {
-        if (!mesh) return new THREE.Vector3(0, 0, 0);
+        if (!mesh) return null;
         const box = new THREE.Box3().setFromObject(mesh);
         const c = new THREE.Vector3();
         box.getCenter(c);
         return c;
     }
 
-    const spawnPos = centerOf(spawnMesh);
-    const entityPos = centerOf(entityMesh);
-    const exitPos = centerOf(exitMesh);
+    const bbox = new THREE.Box3().setFromObject(obj);
+    const bboxSize = bbox.getSize(new THREE.Vector3());
+    const bboxCenter = bbox.getCenter(new THREE.Vector3());
+
+    const spawnDefault = new THREE.Vector3(
+        bbox.min.x + bboxSize.x * 0.15,
+        0,
+        bbox.min.z + bboxSize.z * 0.15
+    );
+    const exitDefault = new THREE.Vector3(
+        bbox.max.x - bboxSize.x * 0.15,
+        0,
+        bbox.max.z - bboxSize.z * 0.15
+    );
+
+    let spawnPos = centerOf(spawnMesh) || spawnDefault;
+    let entityPos = centerOf(entityMesh) || new THREE.Vector3(
+        bboxCenter.x, 0, bboxCenter.z
+    );
+    const exitPos = centerOf(exitMesh) || exitDefault;
+
+    const spawnToExit = new THREE.Vector3().subVectors(exitPos, spawnPos);
+    if (spawnToExit.length() < 4.0) {
+        console.warn('[MapObj] Spawn and exit too close — pushing exit away');
+        exitPos.x = spawnPos.x + (bboxSize.x * 0.7);
+        exitPos.z = spawnPos.z + (bboxSize.z * 0.7);
+    }
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
         if (!m) return;
@@ -127,7 +161,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         data,
         spawnPos: { x: spawnPos.x, z: spawnPos.z },
         exitPos:  { x: exitPos.x,  z: exitPos.z  },
-        entitySpawnPos: entityMesh ? { x: entityPos.x, z: entityPos.z } : null,
+        entitySpawnPos: { x: entityPos.x, z: entityPos.z },
         lightSources,
         flickerLights: [],
         wallMeshes: [],
