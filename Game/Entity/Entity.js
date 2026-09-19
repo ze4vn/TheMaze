@@ -81,8 +81,8 @@ export class Entity {
 
     worldToTile(x, z) {
         return {
-            x: Math.round(x / this.tileSize + this.half),
-            y: Math.round(z / this.tileSize + this.half)
+            x: Math.max(0, Math.min(this.size - 1, Math.round(x / this.tileSize + this.half))),
+            y: Math.max(0, Math.min(this.size - 1, Math.round(z / this.tileSize + this.half)))
         };
     }
     tileToWorld(tx, ty) {
@@ -118,7 +118,6 @@ export class Entity {
         const size = this.size;
         const data = this.mazeData;
 
-        // ── Clamp both tiles to valid grid range ──
         const sx = Math.max(0, Math.min(size - 1, Math.round(startTile.x)));
         const sy = Math.max(0, Math.min(size - 1, Math.round(startTile.y)));
         const gx = Math.max(0, Math.min(size - 1, Math.round(goalTile.x)));
