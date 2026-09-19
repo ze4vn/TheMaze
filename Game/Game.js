@@ -768,6 +768,12 @@ export class Game {
         this.entity = new Entity(this.scene, this.mazeData, this.currentSize,
             this.currentHalf, tileSize, wallHeight, spawnTile);
         this.entity.onKill = () => this.triggerDeath('entity');
+
+        this.entity.killEnabled = false;
+        const entRef = this.entity;
+        setTimeout(() => {
+            if (this.entity === entRef) this.entity.killEnabled = true;
+        }, 4000);
     }
 
     updateEntityLightFlicker(dt) {
@@ -818,8 +824,8 @@ export class Game {
                     );
                     if (dir.lengthSq() < 0.0001) dir.set(1, 0, 1);
                     dir.normalize();
-                    this.entity.position.x = this.cameraGroup.position.x + dir.x * 12;
-                    this.entity.position.z = this.cameraGroup.position.z + dir.z * 12;
+                    this.entity.position.x = this.cameraGroup.position.x + dir.x * 15;
+                    this.entity.position.z = this.cameraGroup.position.z + dir.z * 15;
                     this.entity.currentPath = [];
                     this.entity.pathIndex = 0;
                     this.entity.lastKnownPlayerTile = null;
@@ -992,6 +998,21 @@ export class Game {
         if (this.entity && this.entity.isActive && !this.isTransitioning && !this.player.isDead) {
             this.entity.update(dt, this.cameraGroup.position, this.player.flashlightOn,
                 this.player.playerJustJumped, this.player.sanity, this.gameTime);
+
+            if (this._spawnProtectionTimer > 0) {
+                const dxE = this.entity.position.x - this.cameraGroup.position.x;
+                const dzE = this.entity.position.z - this.cameraGroup.position.z;
+                const distE = Math.hypot(dxE, dzE);
+                if (distE < 2.0) {
+                    const nx = distE > 0.001 ? dxE / distE : 1;
+                    const nz = distE > 0.001 ? dzE / distE : 0;
+                    this.entity.position.x = this.cameraGroup.position.x + nx * 15;
+                    this.entity.position.z = this.cameraGroup.position.z + nz * 15;
+                    this.entity.currentPath = [];
+                    this.entity.pathIndex = 0;
+                    this.entity.lastKnownPlayerTile = null;
+                }
+            }
         }
 
         this.updateEntityLightFlicker(dt);
