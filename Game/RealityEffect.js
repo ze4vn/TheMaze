@@ -34,13 +34,13 @@ export class RealityEffect {
         if (!this.active) return;
 
         this.staticAccum += dt;
-        if (this.staticAccum > 0.05) {
+        if (this.staticAccum > 0.22) {
             this.staticAccum = 0;
             this._drawStatic();
         }
 
         this.markAccum += dt;
-        if (this.markAccum > 0.08) {
+        if (this.markAccum > 0.35) {
             this.markAccum = 0;
             this._reseedMarks();
         }
@@ -57,7 +57,8 @@ export class RealityEffect {
             d[i]     = v;
             d[i + 1] = v;
             d[i + 2] = v;
-            d[i + 3] = 170;
+
+            d[i + 3] = 90;
         }
         this.ctx.putImageData(img, 0, 0);
     }
@@ -66,14 +67,16 @@ export class RealityEffect {
         if (!this.marksContainer) return;
         for (const m of this.marks) m.remove();
         this.marks = [];
-        const count = 3 + Math.floor(Math.random() * 4); 
+
+        const count = 1 + Math.floor(Math.random() * 3);
         for (let i = 0; i < count; i++) {
             const span = document.createElement('span');
             span.className = 'qmark';
             span.textContent = '?';
             span.style.left = (Math.random() * 90) + '%';
             span.style.top  = (Math.random() * 90) + '%';
-            span.style.fontSize = (30 + Math.random() * 70) + 'px';
+
+            span.style.fontSize = (20 + Math.random() * 35) + 'px';
             this.marksContainer.appendChild(span);
             this.marks.push(span);
         }
