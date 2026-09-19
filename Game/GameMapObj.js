@@ -54,7 +54,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         return {
             group, data: fallbackData(),
             spawnPos: { x: -8, z: -8 }, exitPos: { x: 8, z: 8 },
-            entitySpawnPos: { x: 8, z: 8 },
+            entitySpawnPos: { x: 8, z: -8 },
             lightSources: [], flickerLights: [], wallMeshes: [],
             waterReflector: null, totalSize: size * tileSize
         };
@@ -70,26 +70,16 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     function nameMatches(name, aliases) {
         if (!name) return false;
         const n = name.toLowerCase();
-        for (const a of aliases) {
-            if (n === a) return true;
-        }
-        for (const a of aliases) {
-            if (n.includes(a)) return true;
-        }
+        for (const a of aliases) if (n === a) return true;
+        for (const a of aliases) if (n.includes(a)) return true;
         return false;
     }
 
     let spawnMesh = null, entityMesh = null, exitMesh = null;
-    const namedObjects = [];
-
     obj.traverse((c) => {
         const ownName = c.name || '';
         const parentName = (c.parent && c.parent.name) ? c.parent.name : '';
-        if (ownName || parentName) {
-            namedObjects.push({ own: ownName, parent: parentName });
-        }
         if (!c.isMesh) return;
-
         const candidates = [ownName, parentName];
         for (const nm of candidates) {
             if (!spawnMesh && nameMatches(nm, SPAWN_ALIASES)) { spawnMesh = c; break; }
@@ -99,13 +89,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     });
 
     console.log('[MapObj] Markers found — spawn:', !!spawnMesh, 'entity:', !!entityMesh, 'exit:', !!exitMesh);
-
-    const uniqueNames = new Set();
-    for (const n of namedObjects) {
-        if (n.own) uniqueNames.add('own: ' + n.own);
-        if (n.parent) uniqueNames.add('parent: ' + n.parent);
-    }
-    console.log('[MapObj] Unique names in OBJ (first 50):', [...uniqueNames].slice(0, 50));
 
     function centerOf(mesh) {
         if (!mesh) return null;
@@ -119,53 +102,63 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const bboxSize = bbox.getSize(new THREE.Vector3());
     const bboxCenter = bbox.getCenter(new THREE.Vector3());
 
-    const spawnDefault = new THREE.Vector3(
-        bbox.min.x + bboxSize.x * 0.15, 0,
-        bbox.min.z + bboxSize.z * 0.15
-    );
-    const exitDefault = new THREE.Vector3(
-        bbox.max.x - bboxSize.x * 0.15, 0,
-        bbox.max.z - bboxSize.z * 0.15
-    );
+    const corners = [
+        new THREE.Vector3(bbox.min.x * 0.9, 0, bbox.min.z * 0.9),
+        new THREE.Vector3(bbox.max.x * 0.9, 0, bbox.min.z * 0.9),
+        new THREE.Vector3(bbox.min.x * 0.9, 0, bbox.max.z * 0.9),
+        new THREE.Vector3(bbox.max.x * 0.9, 0, bbox.max.z * 0.9)
+    ];
 
-    let spawnPos = centerOf(spawnMesh) || spawnDefault;
-    let entityPos = centerOf(entityMesh) || new THREE.Vector3(bbox.max.x * 0.85, 0, bbox.max.z * 0.85);
-    let exitPos  = centerOf(exitMesh)  || exitDefault;
+    let spawnPos = clampToWorld(centerOf(spawnMesh) || corners[0].clone());
 
-    spawnPos = clampToWorld(spawnPos);
-    entityPos = clampToWorld(entityPos);
-    exitPos = clampToWorld(exitPos);
-
-    if (new THREE.Vector3().subVectors(exitPos, spawnPos).length() < 4.0) {
-        console.warn('[MapObj] Spawn and exit too close — pushing exit away');
-        exitPos.x = Math.max(worldMin, Math.min(worldMax, spawnPos.x + 8));
-        exitPos.z = Math.max(worldMin, Math.min(worldMax, spawnPos.z + 8));
+    let exitPos;
+    const exitFromMarker = centerOf(exitMesh);
+    if (exitFromMarker) {
+        const dist = exitFromMarker.distanceTo(spawnPos);
+        if (dist >= 10.0) {
+            exitPos = clampToWorld(exitFromMarker);
+        } else {
+            console.warn('[MapObj] Exit marker too close to spawn (' + dist.toFixed(1) + 'm) — using farthest corner instead');
+            exitPos = null;
+        }
     }
-
-    const spawnEntityDist = new THREE.Vector3().subVectors(entityPos, spawnPos).length();
-    if (spawnEntityDist < 8.0) {
-        console.warn('[MapObj] Entity spawn too close to player (' + spawnEntityDist.toFixed(1) + 'm) — pushing to opposite corner');
-        const corners = [
-            new THREE.Vector3(bbox.min.x, 0, bbox.min.z),
-            new THREE.Vector3(bbox.max.x, 0, bbox.min.z),
-            new THREE.Vector3(bbox.min.x, 0, bbox.max.z),
-            new THREE.Vector3(bbox.max.x, 0, bbox.max.z)
-        ];
-        let best = corners[0];
-        let bestDist = -1;
+    if (!exitPos) {
+        let best = corners[0], bestD = -1;
         for (const c of corners) {
             const d = c.distanceTo(spawnPos);
-            if (d > bestDist) { bestDist = d; best = c; }
+            if (d > bestD) { bestD = d; best = c; }
         }
-        entityPos = best.clone();
-        entityPos.x = entityPos.x * 0.9;
-        entityPos.z = entityPos.z * 0.9;
+        exitPos = clampToWorld(best.clone());
     }
 
-    console.log('[MapObj] Final positions — spawn: [' +
-        spawnPos.x.toFixed(1) + ', ' + spawnPos.z.toFixed(1) + '] ' +
-        'entity: [' + entityPos.x.toFixed(1) + ', ' + entityPos.z.toFixed(1) + '] ' +
-        'exit: [' + exitPos.x.toFixed(1) + ', ' + exitPos.z.toFixed(1) + ']');
+    let entityPos;
+    const entityFromMarker = centerOf(entityMesh);
+    if (entityFromMarker) {
+        const distSpawn = entityFromMarker.distanceTo(spawnPos);
+        if (distSpawn >= 10.0) {
+            entityPos = clampToWorld(entityFromMarker);
+        } else {
+            console.warn('[MapObj] Entity marker too close to spawn (' + distSpawn.toFixed(1) + 'm) — using farthest remaining corner');
+            entityPos = null;
+        }
+    }
+    if (!entityPos) {
+        let best = null, bestScore = -1;
+        for (const c of corners) {
+            const dSpawn = c.distanceTo(spawnPos);
+            const dExit  = c.distanceTo(exitPos);
+            const score  = Math.min(dSpawn, dExit);
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        entityPos = clampToWorld(best.clone());
+    }
+
+    console.log('[MapObj] FINAL POSITIONS:');
+    console.log('   spawn:  [' + spawnPos.x.toFixed(1) + ', ' + spawnPos.z.toFixed(1) + ']');
+    console.log('   exit:   [' + exitPos.x.toFixed(1) + ', ' + exitPos.z.toFixed(1) + ']');
+    console.log('   entity: [' + entityPos.x.toFixed(1) + ', ' + entityPos.z.toFixed(1) + ']');
+    console.log('   dist spawn→exit:   ' + spawnPos.distanceTo(exitPos).toFixed(1) + 'm');
+    console.log('   dist spawn→entity: ' + spawnPos.distanceTo(entityPos).toFixed(1) + 'm');
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
         if (!m) return;
