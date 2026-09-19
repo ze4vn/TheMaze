@@ -9,8 +9,10 @@ import { generateMap2 } from './GameMap2.js';
 import { generateMap3 } from './GameMap3.js';
 import { generateMap4 } from './GameMap4.js';
 import { generateMapObj } from './GameMapObj.js';
+import { generateRealityMap } from './GameMapReality.js';
 import { Entity } from './Entity/Entity.js';
 import { GamePlayer } from './GamePlayer.js';
+import { RealityEffect } from './RealityEffect.js';
 import { Settings } from '../Main/Settings.js';
 
 const MAZE_SIZE = 16;
@@ -130,6 +132,10 @@ export class Game {
         this._brightMode = false;
         this._ambientLight = null;
         this._hemiLight = null;
+
+        this._spawnProtectionTimer = 0;
+
+        this.realityEffect = new RealityEffect();
 
         this.container = document.getElementById('threeContainer');
         this.screen = new GameScreen();
@@ -444,8 +450,8 @@ export class Game {
         const levelMatch = cmd.match(/^!Level\.(\d+)$/i);
         if (levelMatch) {
             const levelNum = parseInt(levelMatch[1], 10);
-            if (levelNum < 0 || levelNum > 3) {
-                console.log(`[console] Level ${levelNum} not implemented. (use 0-3)`);
+            if (levelNum < 0 || levelNum > 4) {
+                console.log(`[console] Level ${levelNum} not implemented. (use 0-4)`);
                 return;
             }
             this.closeConsole();
@@ -480,6 +486,7 @@ export class Game {
             console.log('  !Level.1  — The Woodland');
             console.log('  !Level.2  — The Null Sewers');
             console.log('  !Level.3  — The Labratory');
+            console.log('  !Level.4  — Questionable Reality');
             console.log('  !Immortal     — toggle invincibility');
             console.log('  !ClearNight   — toggle bright mode');
             console.log('  !Fly          — toggle free-fly (no clip)');
@@ -629,7 +636,7 @@ export class Game {
 
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
-
+    
     generateLevel(level, startAmbiance = true) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
@@ -640,6 +647,7 @@ export class Game {
         else if (level === 1) result = generateMap2(this.scene, MAZE_SIZE, wallHeight, tileSize);
         else if (level === 2) result = generateMap3(this.scene, MAZE_SIZE, wallHeight, tileSize);
         else if (level === 3) result = generateMap4(this.scene, MAZE_SIZE, wallHeight, tileSize);
+        else if (level === 4) result = generateRealityMap(this.scene, MAZE_SIZE, wallHeight, tileSize);
         else                  result = generateMapObj(this.scene, MAZE_SIZE, wallHeight, tileSize);
 
         this.mazeGroup = result.group;
@@ -677,19 +685,25 @@ export class Game {
         else if (level === 1) this.screen.showLevelTitle(1, 'The Woodland');
         else if (level === 2) this.screen.showLevelTitle(2, 'The Null Sewers');
         else if (level === 3) this.screen.showLevelTitle(3, 'The Labratory');
+        else if (level === 4) this.screen.showLevelTitle(4, 'Questionable Reality');
 
         this.currentLevel = level;
 
-        this.setBrightMode(level === 0);
+        this.setBrightMode(level === 0 || level === 4);
+
+        if (level === 4) this.realityEffect.activate();
+        else this.realityEffect.deactivate();
 
         if (startAmbiance) {
             this.sound.loop('map1', level === 0);
             this.sound.loop('map2', level === 1);
             this.sound.loop('map3', level === 2);
-            this.sound.loop('map4', level === 3);
+            this.sound.loop('map4', level === 3 || level === 4);
         }
 
         this.spawnEntity();
+
+        this._spawnProtectionTimer = 1.5;
     }
 
     findEntitySpawnTile(playerTile, exitTile) {
@@ -818,6 +832,8 @@ export class Game {
         this.sound.loop('entity', false);
         this._bloodageActive = false;
 
+        this.realityEffect.deactivate();
+
         document.getElementById('winOverlay').classList.add('active');
     }
 
@@ -837,11 +853,12 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
+        this._spawnProtectionTimer = 1.5;
 
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
         this.sound.loop('map3', this.currentLevel === 2);
-        this.sound.loop('map4', this.currentLevel === 3);
+        this.sound.loop('map4', this.currentLevel === 3 || this.currentLevel === 4);
     }
 
     restartLevels() {
@@ -878,6 +895,8 @@ export class Game {
         this.isLocked = false;
         this.isPaused = false;
 
+        this.realityEffect.deactivate();
+
         this.player.isDead = false;
         this.player.gameWon = false;
         this.player.keys = {};
@@ -909,6 +928,10 @@ export class Game {
             this.composer.render();
             this.animationId = requestAnimationFrame(this.animate);
             return;
+        }
+
+        if (this._spawnProtectionTimer > 0) {
+            this._spawnProtectionTimer -= dt;
         }
 
         if (!this.player.isDead && this.gameRunning && !this.player.invincible) {
@@ -964,6 +987,8 @@ export class Game {
                 && !this.isPaused;
             this.player.setViewmodelVisible(shouldShow);
         }
+
+        this.realityEffect.update(dt);
 
         const p = document.getElementById('infoPanel');
         if (p.style.display === 'block') {
@@ -1023,13 +1048,15 @@ export class Game {
 
     checkTeleporter() {
         if (this.isTransitioning || this.player.isDead || this.player.gameWon) return;
+        if (this._spawnProtectionTimer > 0) return;
         const px = this.cameraGroup.position.x, pz = this.cameraGroup.position.z;
         const dist = Math.sqrt((px - this.teleporterPos.x) ** 2 + (pz - this.teleporterPos.z) ** 2);
         if (dist < 1.0) {
             if (this.currentLevel === 0) this.transitionToNextLevel(1);
             else if (this.currentLevel === 1) this.transitionToNextLevel(2);
             else if (this.currentLevel === 2) this.transitionToNextLevel(3);
-            else if (this.currentLevel === 3) this.triggerWin();
+            else if (this.currentLevel === 3) this.transitionToNextLevel(4);
+            else if (this.currentLevel === 4) this.triggerWin();
         }
     }
 
@@ -1044,6 +1071,7 @@ export class Game {
         if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
         else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'The Null Sewers'), 300);
         else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Labratory'), 300);
+        else if (nextLevel === 4) setTimeout(() => this.screen.showLevelTitle(4, 'Questionable Reality'), 300);
         this.gameTime = START_TIME;
         this.screen.updateTimerUI(this.gameTime);
         if (this.realismPass) {
