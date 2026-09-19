@@ -24,6 +24,8 @@ export function preloadMapObj(url) {
 
 export function generateMapObj(scene, size, wallHeight, tileSize) {
     const half = (size - 1) / 2;
+    const worldMin = -half * tileSize;
+    const worldMax =  half * tileSize;
 
     const group = new THREE.Group();
     scene.add(group);
@@ -39,12 +41,20 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         return d;
     }
 
+    function clampToWorld(v3) {
+        return new THREE.Vector3(
+            Math.max(worldMin, Math.min(worldMax, v3.x)),
+            v3.y || 0,
+            Math.max(worldMin, Math.min(worldMax, v3.z))
+        );
+    }
+
     if (!_cachedOBJ) {
         console.warn('[MapObj] No preloaded OBJ — using fallback');
         return {
             group, data: fallbackData(),
-            spawnPos: { x: -10, z: -10 }, exitPos: { x: 10, z: 10 },
-            entitySpawnPos: null,
+            spawnPos: { x: -8, z: -8 }, exitPos: { x: 8, z: 8 },
+            entitySpawnPos: { x: 0, z: 0 },
             lightSources: [], flickerLights: [], wallMeshes: [],
             waterReflector: null, totalSize: size * tileSize
         };
@@ -53,24 +63,51 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const obj = _cachedOBJ.clone(true);
     group.add(obj);
 
+    // ── Marker matching (case-insensitive, supports common aliases) ──
+    const SPAWN_ALIASES  = ['spawn', 'player_spawn', 'playerspawn', 'playerstart', 'player_start', 'start_point', 'startpoint', 'start'];
+    const ENTITY_ALIASES = ['entityspawn', 'entity_spawn', 'entities', 'monsterspawn', 'monster_spawn', 'monster', 'enemyspawn', 'enemy_spawn', 'entity', 'enemy'];
+    const EXIT_ALIASES   = ['exit', 'exit_point', 'exitpoint', 'goal', 'finish', 'end'];
+
+    function nameMatches(name, aliases) {
+        if (!name) return false;
+        const n = name.toLowerCase();
+        for (const a of aliases) {
+            if (n === a) return true;
+        }
+        for (const a of aliases) {
+            if (n.includes(a)) return true;
+        }
+        return false;
+    }
+
     let spawnMesh = null, entityMesh = null, exitMesh = null;
-    const allNamed = [];
+    const namedObjects = [];
 
     obj.traverse((c) => {
-
-        const ownName = (c.name || '').toLowerCase();
-        const parentName = (c.parent && c.parent.name ? c.parent.name : '').toLowerCase();
-        if (ownName || parentName) allNamed.push({ own: ownName, parent: parentName });
-
+        const ownName = c.name || '';
+        const parentName = (c.parent && c.parent.name) ? c.parent.name : '';
+        if (ownName || parentName) {
+            namedObjects.push({ own: ownName, parent: parentName });
+        }
         if (!c.isMesh) return;
 
-        if (!spawnMesh && (ownName === 'spawn' || parentName === 'spawn')) spawnMesh = c;
-        if (!entityMesh && (ownName === 'entityspawn' || parentName === 'entityspawn')) entityMesh = c;
-        if (!exitMesh && (ownName === 'exit' || parentName === 'exit')) exitMesh = c;
+        const candidates = [ownName, parentName];
+        for (const nm of candidates) {
+            if (!spawnMesh && nameMatches(nm, SPAWN_ALIASES)) { spawnMesh = c; break; }
+            if (!entityMesh && nameMatches(nm, ENTITY_ALIASES)) { entityMesh = c; break; }
+            if (!exitMesh && nameMatches(nm, EXIT_ALIASES)) { exitMesh = c; break; }
+        }
     });
 
     console.log('[MapObj] Markers found — spawn:', !!spawnMesh, 'entity:', !!entityMesh, 'exit:', !!exitMesh);
-    console.log('[MapObj] Named objects:', allNamed);
+
+    const uniqueNames = new Set();
+    for (const n of namedObjects) {
+        if (n.own) uniqueNames.add('own: ' + n.own);
+        if (n.parent) uniqueNames.add('parent: ' + n.parent);
+    }
+    console.log('[MapObj] Unique names in OBJ (showing first 50):');
+    console.log([...uniqueNames].slice(0, 50));
 
     function centerOf(mesh) {
         if (!mesh) return null;
@@ -85,27 +122,26 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const bboxCenter = bbox.getCenter(new THREE.Vector3());
 
     const spawnDefault = new THREE.Vector3(
-        bbox.min.x + bboxSize.x * 0.15,
-        0,
+        bbox.min.x + bboxSize.x * 0.15, 0,
         bbox.min.z + bboxSize.z * 0.15
     );
     const exitDefault = new THREE.Vector3(
-        bbox.max.x - bboxSize.x * 0.15,
-        0,
+        bbox.max.x - bboxSize.x * 0.15, 0,
         bbox.max.z - bboxSize.z * 0.15
     );
 
     let spawnPos = centerOf(spawnMesh) || spawnDefault;
-    let entityPos = centerOf(entityMesh) || new THREE.Vector3(
-        bboxCenter.x, 0, bboxCenter.z
-    );
-    const exitPos = centerOf(exitMesh) || exitDefault;
+    let entityPos = centerOf(entityMesh) || new THREE.Vector3(bboxCenter.x, 0, bboxCenter.z);
+    let exitPos  = centerOf(exitMesh)  || exitDefault;
 
-    const spawnToExit = new THREE.Vector3().subVectors(exitPos, spawnPos);
-    if (spawnToExit.length() < 4.0) {
+    spawnPos = clampToWorld(spawnPos);
+    entityPos = clampToWorld(entityPos);
+    exitPos = clampToWorld(exitPos);
+
+    if (new THREE.Vector3().subVectors(exitPos, spawnPos).length() < 4.0) {
         console.warn('[MapObj] Spawn and exit too close — pushing exit away');
-        exitPos.x = spawnPos.x + (bboxSize.x * 0.7);
-        exitPos.z = spawnPos.z + (bboxSize.z * 0.7);
+        exitPos.x = Math.max(worldMin, Math.min(worldMax, spawnPos.x + 8));
+        exitPos.z = Math.max(worldMin, Math.min(worldMax, spawnPos.z + 8));
     }
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
