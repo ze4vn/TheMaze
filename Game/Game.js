@@ -738,25 +738,32 @@ export class Game {
         return bestTile || { x: size - 1, y: size - 1 };
     }
 
-    spawnEntity() {
+       spawnEntity() {
         if (this.entity) { this.entity.dispose(); this.entity = null; }
         let spawnTile;
+
         if (this.entitySpawnOverride) {
-            spawnTile = {
-                x: Math.round(this.entitySpawnOverride.x / tileSize + this.currentHalf),
-                y: Math.round(this.entitySpawnOverride.z / tileSize + this.currentHalf)
-            };
+            let tx = Math.round(this.entitySpawnOverride.x / tileSize + this.currentHalf);
+            let ty = Math.round(this.entitySpawnOverride.z / tileSize + this.currentHalf);
+            tx = Math.max(0, Math.min(this.currentSize - 1, tx));
+            ty = Math.max(0, Math.min(this.currentSize - 1, ty));
+            spawnTile = { x: tx, y: ty };
         } else {
             const playerTile = {
-                x: Math.round(this.spawnX / tileSize + this.currentHalf),
-                y: Math.round(this.spawnZ / tileSize + this.currentHalf)
+                x: Math.max(0, Math.min(this.currentSize - 1,
+                    Math.round(this.spawnX / tileSize + this.currentHalf))),
+                y: Math.max(0, Math.min(this.currentSize - 1,
+                    Math.round(this.spawnZ / tileSize + this.currentHalf)))
             };
             const exitTile = {
-                x: Math.round(this.exitX / tileSize + this.currentHalf),
-                y: Math.round(this.exitZ / tileSize + this.currentHalf)
+                x: Math.max(0, Math.min(this.currentSize - 1,
+                    Math.round(this.exitX / tileSize + this.currentHalf))),
+                y: Math.max(0, Math.min(this.currentSize - 1,
+                    Math.round(this.exitZ / tileSize + this.currentHalf)))
             };
             spawnTile = this.findEntitySpawnTile(playerTile, exitTile);
         }
+
         this.entity = new Entity(this.scene, this.mazeData, this.currentSize,
             this.currentHalf, tileSize, wallHeight, spawnTile);
         this.entity.onKill = () => this.triggerDeath('entity');
