@@ -262,7 +262,7 @@ html, body {
 }
 #levelTitleContainer .level-title-sub {
     font-size: 14px; color: rgba(255,255,255,0.5);
-    letter-spacing: 6px; margin-top: 2px; text-transform: uppercase;
+    letter-spacing: 6px; margin-top: 2px;
 }
 
 #sanityContainer {
