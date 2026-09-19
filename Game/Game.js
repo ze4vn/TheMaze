@@ -26,26 +26,26 @@ const ENTITY_LIGHT_TOGGLE_MAX = 0.22;
 class SoundManager {
     constructor() {
         this.sounds = {
-    map1: new Audio('../Audio/Map1_Ambiance.mp3'),
-    map2: new Audio('../Audio/Map2_Ambiance.mp3'),
-    map3: new Audio('../Audio/Map3_Ambiance.mp3'),
-    map4: new Audio('../Audio/Map4_Ambiance.mp3'),
-    bloodage: new Audio('../Audio/Bloodage.mp3'),
-    death: new Audio('../Audio/Death.mp3'),
-    entity: new Audio('../Audio/Entity.mp3'),
-    flashlight: new Audio('../Audio/FlashLight.mp3')
-};
+            map1: new Audio('../Audio/Map1_Ambiance.mp3'),
+            map2: new Audio('../Audio/Map2_Ambiance.mp3'),
+            map3: new Audio('../Audio/Map3_Ambiance.mp3'),
+            map4: new Audio('../Audio/Map4_Ambiance.mp3'),
+            bloodage: new Audio('../Audio/Bloodage.mp3'),
+            death: new Audio('../Audio/Death.mp3'),
+            entity: new Audio('../Audio/Entity.mp3'),
+            flashlight: new Audio('../Audio/FlashLight.mp3')
+        };
         for (const k in this.sounds) this.sounds[k].loop = true;
         this.sounds.map1.volume = 0.4;
         this.sounds.map2.volume = 0.4;
         this.sounds.map3.volume = 0.4;
         this.sounds.map4.volume = 0.4;
         this.sounds.bloodage.volume = 0.55;
-this.sounds.death.loop = false;
-this.sounds.death.volume = 0.85;
-this.sounds.entity.volume = 0.0;
-this.sounds.flashlight.loop = false;
-this.sounds.flashlight.volume = 0.7;
+        this.sounds.death.loop = false;
+        this.sounds.death.volume = 0.85;
+        this.sounds.entity.volume = 0.0;
+        this.sounds.flashlight.loop = false;
+        this.sounds.flashlight.volume = 0.7;
     }
     play(name) {
         const s = this.sounds[name];
@@ -489,7 +489,11 @@ export class Game {
     }
 
     toggleBrightMode() {
-        this._brightMode = !this._brightMode;
+        this.setBrightMode(!this._brightMode);
+    }
+
+    setBrightMode(on) {
+        this._brightMode = !!on;
         if (!this._ambientLight || !this._hemiLight) return;
 
         if (this._brightMode) {
@@ -572,16 +576,16 @@ export class Game {
         }
     }
 
-   onClick() {
-    if (this.consoleOpen || this.isPaused) return;
-    if (this.player.gameWon) return;
-    if (this.isLocked) {
-        this.player.toggleFlashlight();
-        this.sound.play('flashlight');
-    } else if (!this.isTransitioning && !this.player.isDead) {
-        try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
+    onClick() {
+        if (this.consoleOpen || this.isPaused) return;
+        if (this.player.gameWon) return;
+        if (this.isLocked) {
+            this.player.toggleFlashlight();
+            this.sound.play('flashlight');
+        } else if (!this.isTransitioning && !this.player.isDead) {
+            try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
+        }
     }
-}
 
     pause() {
         if (this.isPaused) return;
@@ -673,6 +677,8 @@ export class Game {
         else if (level === 3) this.screen.showLevelTitle(3, 'The Lab');
 
         this.currentLevel = level;
+
+        this.setBrightMode(level === 0);
 
         if (startAmbiance) {
             this.sound.loop('map1', level === 0);
