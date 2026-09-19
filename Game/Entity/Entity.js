@@ -117,22 +117,39 @@ export class Entity {
     findPath(startTile, goalTile) {
         const size = this.size;
         const data = this.mazeData;
-        if (startTile.x === goalTile.x && startTile.y === goalTile.y) return [];
+
+        // ── Clamp both tiles to valid grid range ──
+        const sx = Math.max(0, Math.min(size - 1, Math.round(startTile.x)));
+        const sy = Math.max(0, Math.min(size - 1, Math.round(startTile.y)));
+        const gx = Math.max(0, Math.min(size - 1, Math.round(goalTile.x)));
+        const gy = Math.max(0, Math.min(size - 1, Math.round(goalTile.y)));
+
+        if (sx === gx && sy === gy) return [];
+        if (!data[sy] || !data[sy][sx]) return [];
+        if (!data[gy] || !data[gy][gx]) return [];
+
         const visited = Array.from({ length: size }, () => Array(size).fill(false));
-        const parent = Array.from({ length: size }, () => Array(size).fill(null));
-        const queue = [{ x: startTile.x, y: startTile.y }];
-        visited[startTile.y][startTile.x] = true;
+        const parent  = Array.from({ length: size }, () => Array(size).fill(null));
+        const queue = [{ x: sx, y: sy }];
+        visited[sy][sx] = true;
+
         let qi = 0, found = false;
         while (qi < queue.length) {
             const { x, y } = queue[qi++];
-            if (x === goalTile.x && y === goalTile.y) { found = true; break; }
-            const cell = data[y][x];
+            if (x === gx && y === gy) { found = true; break; }
+
+            const cell = data[y] && data[y][x];
+            if (!cell) continue;
+
             const nbs = [];
-            if (!cell.top && y > 0) nbs.push({ x, y: y - 1 });
-            if (!cell.bottom && y < size - 1) nbs.push({ x, y: y + 1 });
-            if (!cell.left && x > 0) nbs.push({ x: x - 1, y });
-            if (!cell.right && x < size - 1) nbs.push({ x: x + 1, y });
+            if (!cell.top && y > 0)          nbs.push({ x,     y: y - 1 });
+            if (!cell.bottom && y < size - 1) nbs.push({ x,     y: y + 1 });
+            if (!cell.left && x > 0)          nbs.push({ x: x - 1, y });
+            if (!cell.right && x < size - 1)  nbs.push({ x: x + 1, y });
+
             for (const d of nbs) {
+                if (d.y < 0 || d.y >= size || d.x < 0 || d.x >= size) continue;
+                if (!visited[d.y]) continue;
                 if (!visited[d.y][d.x]) {
                     visited[d.y][d.x] = true;
                     parent[d.y][d.x] = { x, y };
@@ -140,10 +157,16 @@ export class Entity {
                 }
             }
         }
+
         if (!found) return [];
+
         const path = [];
-        let cur = { x: goalTile.x, y: goalTile.y };
-        while (parent[cur.y][cur.x]) { path.unshift(cur); cur = parent[cur.y][cur.x]; }
+        let cur = { x: gx, y: gy };
+        let guard = 0;
+        while (parent[cur.y] && parent[cur.y][cur.x] && guard++ < size * size) {
+            path.unshift(cur);
+            cur = parent[cur.y][cur.x];
+        }
         return path;
     }
 
