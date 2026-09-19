@@ -631,12 +631,12 @@ export class Game {
         this.sound.loop('map1', lvl === 0);
         this.sound.loop('map2', lvl === 1);
         this.sound.loop('map3', lvl === 2);
-        this.sound.loop('map4', lvl === 3);
+        this.sound.loop('map4', lvl === 3 || lvl === 4);
         if (this._bloodageActive) this.sound.loop('bloodage', true);
 
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
     }
-    
+
     generateLevel(level, startAmbiance = true) {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
@@ -703,7 +703,7 @@ export class Game {
 
         this.spawnEntity();
 
-        this._spawnProtectionTimer = 1.5;
+        this._spawnProtectionTimer = 3.0;
     }
 
     findEntitySpawnTile(playerTile, exitTile) {
@@ -715,7 +715,8 @@ export class Game {
         let qi = 0;
         while (qi < queue.length) {
             const { x, y } = queue[qi++];
-            const cell = data[y][x];
+            const cell = data[y] && data[y][x];
+            if (!cell) continue;
             const d0 = dist[y][x];
             const nbs = [];
             if (!cell.top && y > 0) nbs.push({ x, y: y - 1 });
@@ -738,7 +739,7 @@ export class Game {
         return bestTile || { x: size - 1, y: size - 1 };
     }
 
-       spawnEntity() {
+    spawnEntity() {
         if (this.entity) { this.entity.dispose(); this.entity = null; }
         let spawnTile;
 
@@ -806,6 +807,30 @@ export class Game {
     triggerDeath(cause) {
         if (this.player.isDead) return;
         if (this.player.invincible || this.player.gameWon) return;
+
+        if (this._spawnProtectionTimer > 0) {
+            if (cause === 'entity') {
+                if (this.entity) {
+                    const dir = new THREE.Vector3(
+                        this.entity.position.x - this.cameraGroup.position.x,
+                        0,
+                        this.entity.position.z - this.cameraGroup.position.z
+                    );
+                    if (dir.lengthSq() < 0.0001) dir.set(1, 0, 1);
+                    dir.normalize();
+                    this.entity.position.x = this.cameraGroup.position.x + dir.x * 12;
+                    this.entity.position.z = this.cameraGroup.position.z + dir.z * 12;
+                    this.entity.currentPath = [];
+                    this.entity.pathIndex = 0;
+                    this.entity.lastKnownPlayerTile = null;
+                }
+                return;
+            }
+            if (cause === 'sanity' || cause === 'time') {
+                return;
+            }
+        }
+
         this.player.isDead = true;
         this.isLocked = false;
         if (document.pointerLockElement) document.exitPointerLock();
@@ -860,7 +885,7 @@ export class Game {
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
         this.spawnEntity();
-        this._spawnProtectionTimer = 1.5;
+        this._spawnProtectionTimer = 3.0;
 
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
