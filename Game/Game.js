@@ -711,7 +711,7 @@ export class Game {
 
         this.spawnEntity();
 
-        // ── Spawn protection ──
+        // ── Spawn protection + arming ──
         this._spawnProtectionTimer = 5.0;
         this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
         this._playerHasLeftSpawn = false;
