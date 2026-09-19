@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Maze V</title>
+    <link rel="stylesheet" href="./Style.css" />
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><text x='50' y='72' font-size='80' font-family='Times New Roman,serif' fill='%23fff' text-anchor='middle'>V</text></svg>">
+</head>
+<body>
+
+    <div id="introSequence">
+        <div id="introWhite"></div>
+        <div id="introBlack"></div>
+        <div id="introText">44devs</div>
+    </div>
+
+    <div id="loadingScreen">
+        <div class="loading-label">
+            <span>Loading</span><span id="loadingDots"></span>
+        </div>
+        <div class="loading-bar-track">
+            <div class="loading-bar-fill" id="loadingBarFill"></div>
+        </div>
+    </div>
+
+    <div id="mainMenu">
+        <div id="menuBgWrap">
+            <img id="menuBg" src="../Textures/Home.png" alt="" />
+        </div>
+        <h1 id="menuTitle">The Maze V</h1>
+
+        <div id="menuButtons">
+            <button class="menu-btn" id="btnPlay">Play</button>
+            <button class="menu-btn" id="btnSettings">Settings</button>
+            <button class="menu-btn" id="btnCredits">Credits</button>
+            <button class="menu-btn" id="btnExit">Exit</button>
+        </div>
+
+        <button id="logsBtn">Logs</button>
+
+        <div id="logsPanel">
+            <div class="logs-header">
+                <span>Logs</span>
+                <button id="logsClose">×</button>
+            </div>
+            <div class="logs-body">
+                <h1>Last Update: 19/9/26</h1>
+                <div class="logs-line">Version &gt; 1.0.4</div>
+                <div class="logs-line">Pre-Version &gt; 0.0.1</div>
+                <div class="logs-quote">Christ Is Lord &amp; All Things Are Possible Through Him.</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameOverlay">
+        <div class="gameBg"></div>
+        <div class="gameContent">
+            <div id="threeContainer"></div>
+            <div id="winOverlay">
+                <div class="winText">You Escaped!</div>
+                <div class="winSub" id="winContinue">Click to replay</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="flashText"></div>
+    <div id="whiteFlash"></div>
+    <div id="blackFade"></div>
+    <div id="levelMsg"></div>
+    <div id="infoPanel"><div id="infoContent"></div></div>
+
+    <div id="timerContainer">5:0:0</div>
+
+    <div id="levelTitleContainer">
+        <div class="level-title-main" id="levelTitleMain">Level 1</div>
+        <div class="level-title-sub" id="levelTitleSub">The Woodland</div>
+    </div>
+
+    <div id="staminaContainer"><div id="staminaBar"></div></div>
+
+    <div id="sanityContainer">
+        <div id="sanityCircle">
+            <div id="sanityLetter">A</div>
+            <div id="sanityLabel">SANITY</div>
+        </div>
+    </div>
+
+    <div id="schizoOverlay"></div>
+
+    <div id="deathOverlay">
+        <div id="deathWhiteFlash"></div>
+        <div id="deathBlackFade"></div>
+        <div id="deathContent">
+            <h1 id="deathTitle">You Died</h1>
+            <div id="deathButtons">
+                <button id="btnRespawn">Respawn</button>
+                <button id="btnMainMenu">Main Menu</button>
+                <button id="btnRestartLevels">Restart Levels</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="devConsole">
+        <input type="text" id="consoleInput" placeholder="Enter command..." autocomplete="off" spellcheck="false" />
+        <div class="console-hint">Try: <b>!Level.1</b> &nbsp;·&nbsp; <b>!Level.2</b> &nbsp;·&nbsp; <b>!Level.3</b> &nbsp;·&nbsp; press <b>`</b> to close</div>
+    </div>
+
+    <div id="pauseMenu">
+        <div class="pause-box">
+            <h1 class="pause-title">Game Is Paused</h1>
+            <button class="pause-btn" id="btnResume">Continue</button>
+            <button class="pause-btn" id="btnPauseRespawn">Respawn</button>
+            <button class="pause-btn" id="btnPauseSettings">Settings</button>
+            <button class="pause-btn" id="btnPauseMainMenu">Exit to Main Menu</button>
+        </div>
+    </div>
+
+    <div id="settingsMenu">
+        <div class="settings-box">
+            <h1 class="settings-title">Settings</h1>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>FOV</span>
+                    <span class="setting-value" id="fovValue">84</span>
+                </div>
+                <input type="range" id="fovSlider" min="60" max="120" step="1" value="84">
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Sensitivity</span>
+                    <span class="setting-value" id="sensValue">1.00</span>
+                </div>
+                <input type="range" id="sensSlider" min="0.2" max="3" step="0.05" value="1">
+            </div>
+
+            <button class="pause-btn" id="btnSettingsClose">Back</button>
+        </div>
+    </div>
+
+    <div id="creditsScreen">
+        <div class="credits-title">Credits</div>
+        <div class="credits-scroll-area">
+            <div class="credits-text" id="creditsText">
+     ~Developer~
+        44devs
+
+       ~Artist~
+    Susanna. Del
+
+       ~Models~
+      SketchyBot 
+
+    ~Audio Makers~
+       fs_com
+     uttam kunar
+    universefield
+    sound reality
+
+       ~Tester~
+     Konstantin.M
+            </div>
+        </div>
+    </div>
+
+    <div id="exitBlackFade"></div>
+
+    <script type="module" src="./Script.js"></script>
+</body>
+</html>
