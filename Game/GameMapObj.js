@@ -53,8 +53,8 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         console.warn('[MapObj] No preloaded OBJ — using fallback');
         return {
             group, data: fallbackData(),
-            spawnPos: { x: -8, z: -8 }, exitPos: { x: 8, z: 8 },
-            entitySpawnPos: { x: 8, z: -8 },
+            spawnPos: { x: -10, z: -10 }, exitPos: { x: 10, z: 10 },
+            entitySpawnPos: { x: 10, z: -10 },
             lightSources: [], flickerLights: [], wallMeshes: [],
             waterReflector: null, totalSize: size * tileSize
         };
@@ -102,63 +102,68 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const bboxSize = bbox.getSize(new THREE.Vector3());
     const bboxCenter = bbox.getCenter(new THREE.Vector3());
 
+    const spawnMarker = centerOf(spawnMesh);
+    const exitMarker  = centerOf(exitMesh);
+    const entityMarker = centerOf(entityMesh);
+
+    let useMarkers = false;
+    if (spawnMarker && exitMarker && entityMarker) {
+        const dSE = spawnMarker.distanceTo(exitMarker);
+        const dSEn = spawnMarker.distanceTo(entityMarker);
+        const dEEn = exitMarker.distanceTo(entityMarker);
+        console.log('[MapObj] Marker distances — spawn↔exit:', dSE.toFixed(1),
+                    'spawn↔entity:', dSEn.toFixed(1), 'exit↔entity:', dEEn.toFixed(1));
+        if (dSE >= 15 && dSEn >= 15 && dEEn >= 15) {
+            useMarkers = true;
+        } else {
+            console.warn('[MapObj] ⚠ Markers too close together — IGNORING ALL MARKERS and using corner placement');
+        }
+    } else {
+        console.warn('[MapObj] ⚠ Not all markers found — using corner placement');
+    }
+
     const corners = [
-        new THREE.Vector3(bbox.min.x * 0.9, 0, bbox.min.z * 0.9),
-        new THREE.Vector3(bbox.max.x * 0.9, 0, bbox.min.z * 0.9),
-        new THREE.Vector3(bbox.min.x * 0.9, 0, bbox.max.z * 0.9),
-        new THREE.Vector3(bbox.max.x * 0.9, 0, bbox.max.z * 0.9)
+        new THREE.Vector3(bbox.min.x * 0.85, 0, bbox.min.z * 0.85),
+        new THREE.Vector3(bbox.max.x * 0.85, 0, bbox.min.z * 0.85),
+        new THREE.Vector3(bbox.min.x * 0.85, 0, bbox.max.z * 0.85),
+        new THREE.Vector3(bbox.max.x * 0.85, 0, bbox.max.z * 0.85)
     ];
 
-    let spawnPos = clampToWorld(centerOf(spawnMesh) || corners[0].clone());
+    let spawnPos, exitPos, entityPos;
 
-    let exitPos;
-    const exitFromMarker = centerOf(exitMesh);
-    if (exitFromMarker) {
-        const dist = exitFromMarker.distanceTo(spawnPos);
-        if (dist >= 10.0) {
-            exitPos = clampToWorld(exitFromMarker);
-        } else {
-            console.warn('[MapObj] Exit marker too close to spawn (' + dist.toFixed(1) + 'm) — using farthest corner instead');
-            exitPos = null;
-        }
-    }
-    if (!exitPos) {
-        let best = corners[0], bestD = -1;
-        for (const c of corners) {
-            const d = c.distanceTo(spawnPos);
-            if (d > bestD) { bestD = d; best = c; }
-        }
-        exitPos = clampToWorld(best.clone());
+    if (useMarkers) {
+
+        spawnPos = clampToWorld(spawnMarker);
+        exitPos = clampToWorld(exitMarker);
+        entityPos = clampToWorld(entityMarker);
+    } else {
+        spawnPos = clampToWorld(corners[0].clone());  
+        exitPos = clampToWorld(corners[3].clone());   
+        entityPos = clampToWorld(corners[1].clone());  
     }
 
-    let entityPos;
-    const entityFromMarker = centerOf(entityMesh);
-    if (entityFromMarker) {
-        const distSpawn = entityFromMarker.distanceTo(spawnPos);
-        if (distSpawn >= 10.0) {
-            entityPos = clampToWorld(entityFromMarker);
-        } else {
-            console.warn('[MapObj] Entity marker too close to spawn (' + distSpawn.toFixed(1) + 'm) — using farthest remaining corner');
-            entityPos = null;
-        }
+    if (spawnPos.distanceTo(exitPos) < 12) {
+        console.warn('[MapObj] ⚠ Final spawn↔exit check FAILED — snapping exit to opposite corner');
+        exitPos = clampToWorld(corners[3].clone());
     }
-    if (!entityPos) {
-        let best = null, bestScore = -1;
+    if (spawnPos.distanceTo(entityPos) < 12) {
+        console.warn('[MapObj] ⚠ Final spawn↔entity check FAILED — snapping entity to a far corner');
+
+        let best = corners[1], bestScore = -1;
         for (const c of corners) {
-            const dSpawn = c.distanceTo(spawnPos);
-            const dExit  = c.distanceTo(exitPos);
-            const score  = Math.min(dSpawn, dExit);
+            const cc = clampToWorld(c.clone());
+            const score = Math.min(cc.distanceTo(spawnPos), cc.distanceTo(exitPos));
             if (score > bestScore) { bestScore = score; best = c; }
         }
         entityPos = clampToWorld(best.clone());
     }
 
-    console.log('[MapObj] FINAL POSITIONS:');
+    console.log('[MapObj] FINAL:');
     console.log('   spawn:  [' + spawnPos.x.toFixed(1) + ', ' + spawnPos.z.toFixed(1) + ']');
     console.log('   exit:   [' + exitPos.x.toFixed(1) + ', ' + exitPos.z.toFixed(1) + ']');
     console.log('   entity: [' + entityPos.x.toFixed(1) + ', ' + entityPos.z.toFixed(1) + ']');
-    console.log('   dist spawn→exit:   ' + spawnPos.distanceTo(exitPos).toFixed(1) + 'm');
-    console.log('   dist spawn→entity: ' + spawnPos.distanceTo(entityPos).toFixed(1) + 'm');
+    console.log('   spawn↔exit:   ' + spawnPos.distanceTo(exitPos).toFixed(1) + 'm');
+    console.log('   spawn↔entity: ' + spawnPos.distanceTo(entityPos).toFixed(1) + 'm');
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
         if (!m) return;
