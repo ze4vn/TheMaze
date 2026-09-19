@@ -40,6 +40,9 @@ const FLASH_ZOOM_STEP = 0.12;
 const FLASH_COLOR_NORMAL = new THREE.Color(0xfff2df);
 const FLASH_COLOR_ZOOMED = new THREE.Color(0xffffff);
 
+const FLASH_POS_LERP   = 0.16;
+const FLASH_TARGET_LERP = 0.055;
+
 const FLY_SPEED = 10;
 const FLY_SPRINT_SPEED = 24;
 
@@ -195,7 +198,8 @@ export class GamePlayer {
                 });
 
                 fbx.scale.setScalar(this.viewmodelScale);
-                fbx.rotation.set(0, Math.PI, 0);
+
+                fbx.rotation.set(Math.PI, 0, 0);
                 fbx.position.set(this.viewmodelBaseX, this.viewmodelBaseY, this.viewmodelBaseZ);
 
                 this.camera.add(fbx);
@@ -267,8 +271,8 @@ export class GamePlayer {
         this.playerJumpHeardTimer = 0;
         this.isDead = false;
         this.gameWon = false;
-
         this.keys = {};
+        this.isFirstFlash = true;
     }
 
     update(dt, time) {
@@ -562,7 +566,8 @@ export class GamePlayer {
             const ix = Math.round(gx);
             const iz = Math.round(gz);
             if (ix < 0 || ix >= size || iz < 0 || iz >= size) return false;
-            const cell = mazeData[iz][ix];
+            const cell = mazeData[iz] && mazeData[iz][ix];
+            if (!cell) return false;
             const localX = gx - ix, localZ = gz - iz;
             if (localX < -0.5 + WALL_MARGIN && cell.left) return false;
             if (localX > 0.5 - WALL_MARGIN && cell.right) return false;
@@ -588,8 +593,9 @@ export class GamePlayer {
             this.isFirstFlash = false;
         }
 
-        this.smoothFlashPos.lerp(flashWorldPos, 0.10);
-        this.smoothFlashTarget.lerp(flashTargetPos, 0.10);
+        this.smoothFlashPos.lerp(flashWorldPos, FLASH_POS_LERP);
+        this.smoothFlashTarget.lerp(flashTargetPos, FLASH_TARGET_LERP);
+
         this.flashlight.position.copy(this.smoothFlashPos);
         this.flashlight.target.position.copy(this.smoothFlashTarget);
         this.lensBounce.position.copy(this.smoothFlashPos).addScaledVector(this._flashDir, 0.1);
