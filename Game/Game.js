@@ -120,6 +120,9 @@ export class Game {
         this.waterReflector = null;
         this.totalSize = 0;
 
+        this.collisionMeshes = null;
+        this.useMeshCollision = false;
+
         this.entity = null;
 
         this.sound = new SoundManager();
@@ -647,6 +650,8 @@ export class Game {
         if (this.mazeGroup) { this.scene.remove(this.mazeGroup); this.mazeGroup = null; }
         this.waterReflector = null;
         this.totalSize = 0;
+        this.collisionMeshes = null;
+        this.useMeshCollision = false;
 
         let result;
         if (level === 0)      result = generateMapObj(this.scene, MAZE_SIZE, wallHeight, tileSize);
@@ -669,6 +674,8 @@ export class Game {
         this.wallMeshes = result.wallMeshes || [];
         this.waterReflector = result.waterReflector || null;
         this.totalSize = result.totalSize || (MAZE_SIZE * tileSize);
+        this.collisionMeshes = result.collisionMeshes || null;
+        this.useMeshCollision = result.useMeshCollision === true;
         this.wallShiftSeed = Math.random() * 1000;
         this.gameTime = START_TIME;
 
@@ -684,6 +691,7 @@ export class Game {
         }
 
         this.player.spawnAt(this.spawnX, this.spawnZ);
+        this._ensurePlayerNotStuck();
 
         this.screen.updateTimerUI(this.gameTime);
         this.screen.updateSanityUI(this.player.sanity);
@@ -716,9 +724,61 @@ export class Game {
             if (this.entity) { this.entity.dispose(); this.entity = null; }
             this.sound.loop('entity', false);
         }
+
         this._spawnProtectionTimer = 5.0;
         this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
         this._playerHasLeftSpawn = false;
+    }
+
+    _ensurePlayerNotStuck() {
+        if (!this.collisionMeshes || this.collisionMeshes.length === 0) return;
+
+        const raycaster = new THREE.Raycaster();
+        const dirs = [
+            [1,0],[-1,0],[0,1],[0,-1],
+            [0.707,0.707],[-0.707,0.707],[0.707,-0.707],[-0.707,-0.707]
+        ];
+        const heights = [0.25, 0.9, 1.45];
+        const probe = 0.42;
+
+        const isFree = (x, z) => {
+            for (const [dx, dz] of dirs) {
+                const dir = new THREE.Vector3(dx, 0, dz).normalize();
+                for (const y of heights) {
+                    raycaster.set(new THREE.Vector3(x, y, z), dir);
+                    raycaster.far = probe;
+                    const hits = raycaster.intersectObjects(this.collisionMeshes, true);
+                    for (const h of hits) {
+                        if (h.object.visible !== false) return false;
+                    }
+                }
+            }
+            return true;
+        };
+
+        const px = this.player.cameraGroup.position.x;
+        const pz = this.player.cameraGroup.position.z;
+        if (isFree(px, pz)) return;
+
+        console.log('[Game] Spawn is inside geometry — searching for clear spot…');
+
+        for (let r = 0.4; r < 12; r += 0.4) {
+            for (let a = 0; a < 20; a++) {
+                const angle = (a / 20) * Math.PI * 2;
+                const tx = px + Math.cos(angle) * r;
+                const tz = pz + Math.sin(angle) * r;
+                if (isFree(tx, tz)) {
+                    console.log('[Game] Relocated player to ' + tx.toFixed(2) + ',' + tz.toFixed(2));
+                    this.player.cameraGroup.position.x = tx;
+                    this.player.cameraGroup.position.z = tz;
+                    this.spawnX = tx;
+                    this.spawnZ = tz;
+                    this._spawnCheckPoint.set(tx, 0, tz);
+                    return;
+                }
+            }
+        }
+        console.warn('[Game] Could not find clear spawn — player may be stuck');
     }
 
     findEntitySpawnTile(playerTile, exitTile) {
@@ -1154,7 +1214,7 @@ export class Game {
         white.style.opacity = '0';
         this.currentLevel = nextLevel;
         this.generateLevel(nextLevel);
-        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodlands'), 300);
+        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
         else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'The Null Sewers'), 300);
         else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Labratory'), 300);
         else if (nextLevel === 4) setTimeout(() => this.screen.showLevelTitle(4, 'Questionable Reality'), 300);
