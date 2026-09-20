@@ -47,8 +47,8 @@ export class Entity {
         });
         this.sprite = new THREE.Sprite(this.spriteMat);
 
-        this.baseWidth = 3.2;
-        this.baseHeight = 3.6;
+        this.baseWidth = 2.0;
+        this.baseHeight = 2.4;
         this.minScale = 0.85;
         this.maxScale = 1.15;
         this.sizeTimer = 0;
