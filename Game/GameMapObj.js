@@ -52,15 +52,16 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
 
     const obj = _cachedOBJ.clone(true);
     group.add(obj);
-    obj.updateMatrixWorld(true);
 
+    obj.updateMatrixWorld(true);
     const bbox = new THREE.Box3().setFromObject(obj);
     const bboxSize = bbox.getSize(new THREE.Vector3());
     const bboxCenter = bbox.getCenter(new THREE.Vector3());
 
-    console.log('[MapObj] Size:  ' + bboxSize.x.toFixed(2) + ' x ' + bboxSize.y.toFixed(2) + ' x ' + bboxSize.z.toFixed(2));
+    console.log('[MapObj] Size:   ' + bboxSize.x.toFixed(2) + ' x ' + bboxSize.y.toFixed(2) + ' x ' + bboxSize.z.toFixed(2));
     console.log('[MapObj] Center: [' + bboxCenter.x.toFixed(2) + ', ' + bboxCenter.y.toFixed(2) + ', ' + bboxCenter.z.toFixed(2) + ']');
-    console.log('[MapObj] Min: [' + bbox.min.x.toFixed(2) + ',' + bbox.min.z.toFixed(2) + ']  Max: [' + bbox.max.x.toFixed(2) + ',' + bbox.max.z.toFixed(2) + ']');
+    console.log('[MapObj] Min/Max X: [' + bbox.min.x.toFixed(2) + ', ' + bbox.max.x.toFixed(2) + ']');
+    console.log('[MapObj] Min/Max Z: [' + bbox.min.z.toFixed(2) + ', ' + bbox.max.z.toFixed(2) + ']');
 
     const SPAWN_ALIASES  = ['spawn', 'player_spawn', 'playerspawn', 'playerstart', 'player_start', 'start_point', 'startpoint', 'start'];
     const ENTITY_ALIASES = ['entityspawn', 'spawnentity', 'entity_spawn', 'entities', 'monsterspawn', 'monster_spawn', 'monster', 'enemyspawn', 'enemy_spawn', 'entity', 'enemy'];
@@ -91,11 +92,8 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     function markerCenter(mesh) {
         if (!mesh) return null;
         const b = new THREE.Box3().setFromObject(mesh);
-        const sz = b.getSize(new THREE.Vector3());
-        if (sz.x < 0.05 && sz.y < 0.05 && sz.z < 0.05) return null;
         const c = new THREE.Vector3();
         b.getCenter(c);
-        if (Math.abs(c.x) < 0.1 && Math.abs(c.z) < 0.1) return null;
         return c;
     }
 
@@ -103,25 +101,29 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const rawExit   = markerCenter(exitMarker);
     const rawEntity = markerCenter(entityMarker);
 
-    if (rawSpawn)  console.log('[MapObj] spawn marker:  [' + rawSpawn.x.toFixed(1) + ', ' + rawSpawn.z.toFixed(1) + ']');
-    if (rawExit)   console.log('[MapObj] exit marker:   [' + rawExit.x.toFixed(1) + ', ' + rawExit.z.toFixed(1) + ']');
-    if (rawEntity) console.log('[MapObj] entity marker: [' + rawEntity.x.toFixed(1) + ', ' + rawEntity.z.toFixed(1) + ']');
+    if (rawSpawn)  console.log('[MapObj] spawn center:  [' + rawSpawn.x.toFixed(2) + ', ' + rawSpawn.z.toFixed(2) + ']');
+    if (rawExit)   console.log('[MapObj] exit center:   [' + rawExit.x.toFixed(2) + ', ' + rawExit.z.toFixed(2) + ']');
+    if (rawEntity) console.log('[MapObj] entity center: [' + rawEntity.x.toFixed(2) + ', ' + rawEntity.z.toFixed(2) + ']');
 
     const corners = [
-        new THREE.Vector3(bbox.min.x + 1.5, 0, bbox.min.z + 1.5),
-        new THREE.Vector3(bbox.max.x - 1.5, 0, bbox.min.z + 1.5),
-        new THREE.Vector3(bbox.min.x + 1.5, 0, bbox.max.z - 1.5),
-        new THREE.Vector3(bbox.max.x - 1.5, 0, bbox.max.z - 1.5)
+        new THREE.Vector3(bbox.min.x + 2, 0, bbox.min.z + 2),
+        new THREE.Vector3(bbox.max.x - 2, 0, bbox.min.z + 2),
+        new THREE.Vector3(bbox.min.x + 2, 0, bbox.max.z - 2),
+        new THREE.Vector3(bbox.max.x - 2, 0, bbox.max.z - 2)
     ];
 
     let spawnPos, exitPos, entityPos;
 
-    spawnPos = rawSpawn ? rawSpawn.clone() : corners[0].clone();
+    if (rawSpawn && (Math.abs(rawSpawn.x) > 0.5 || Math.abs(rawSpawn.z) > 0.5)) {
+        spawnPos = rawSpawn.clone();
+    } else {
+        spawnPos = corners[0].clone();
+    }
 
-    if (rawExit && rawExit.distanceTo(spawnPos) >= 12) {
+    if (rawExit && (Math.abs(rawExit.x) > 0.5 || Math.abs(rawExit.z) > 0.5) && rawExit.distanceTo(spawnPos) >= 12) {
         exitPos = rawExit.clone();
     } else {
-        if (rawExit) console.warn('[MapObj] exit too close to spawn — using far corner');
+        console.warn('[MapObj] exit marker unusable — using far corner');
         let best = corners[3], bestD = -1;
         for (const c of corners) {
             const d = c.distanceTo(spawnPos);
@@ -130,10 +132,11 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         exitPos = best.clone();
     }
 
-    if (rawEntity && rawEntity.distanceTo(spawnPos) >= 12 && rawEntity.distanceTo(exitPos) >= 8) {
+    if (rawEntity && (Math.abs(rawEntity.x) > 0.5 || Math.abs(rawEntity.z) > 0.5) &&
+        rawEntity.distanceTo(spawnPos) >= 12 && rawEntity.distanceTo(exitPos) >= 8) {
         entityPos = rawEntity.clone();
     } else {
-        if (rawEntity) console.warn('[MapObj] entity too close — using other corner');
+        console.warn('[MapObj] entity marker unusable — using other corner');
         let best = null, bestScore = -1;
         for (const c of corners) {
             const score = Math.min(c.distanceTo(spawnPos), c.distanceTo(exitPos));
@@ -146,16 +149,14 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
                 '] exit:[' + exitPos.x.toFixed(1) + ',' + exitPos.z.toFixed(1) +
                 '] entity:[' + entityPos.x.toFixed(1) + ',' + entityPos.z.toFixed(1) + ']');
 
-    // Hide markers so they don't render
     [spawnMarker, entityMarker, exitMarker].forEach((m) => {
         if (!m) return;
         m.visible = false;
         m.raycast = () => {};
     });
 
-    // ═══ Wall detection — horizontal rays at y=1.5 from tile centers ═══
     const raycaster = new THREE.Raycaster();
-    raycaster.far = 1.0;
+    raycaster.far = 1.2;
     const origin = new THREE.Vector3();
 
     function edgeHasWall(wx, wz, dx, dz) {
@@ -191,9 +192,9 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
             if (c.right) wallCount++;
         }
     }
-    console.log('[MapObj] Wall edges detected: ' + wallCount);
+    console.log('[MapObj] Wall edges: ' + wallCount);
 
-    const ambient = new THREE.PointLight(0xaabbdd, 0.5, 100, 1.2);
+    const ambient = new THREE.PointLight(0xaabbdd, 0.6, 120, 1.2);
     ambient.position.set(bboxCenter.x, wallHeight - 0.5, bboxCenter.z);
     group.add(ambient);
 
