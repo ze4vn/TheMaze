@@ -3,7 +3,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 let _cachedOBJ = null;
 let _cachedURL = null;
-
+ 
 export function preloadMapObj(url) {
     if (_cachedOBJ && _cachedURL === url) return Promise.resolve(_cachedOBJ);
     return new Promise((resolve, reject) => {
