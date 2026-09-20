@@ -192,7 +192,7 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     }
 
     const data = [];
-    const probe = tileSize * 0.42;
+    const probe = tileSize * 0.5;
     for (let ty = 0; ty < size; ty++) {
         data[ty] = [];
         for (let tx = 0; tx < size; tx++) {
@@ -215,15 +215,16 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     const lightSources = [{ light: exitLight, position: exitPos.clone() }];
 
     return {
-        group,
-        data,
-        spawnPos: { x: spawnPos.x, z: spawnPos.z },
-        exitPos:  { x: exitPos.x,  z: exitPos.z  },
-        entitySpawnPos: { x: entityPos.x, z: entityPos.z },
-        lightSources,
-        flickerLights: [],
-        wallMeshes: [],
-        waterReflector: null,
-        totalSize: size * tileSize
-    };
+    group,
+    data,
+    spawnPos: { x: spawnPos.x, z: spawnPos.z },
+    exitPos:  { x: exitPos.x,  z: exitPos.z  },
+    entitySpawnPos: { x: entityPos.x, z: entityPos.z },
+    lightSources,
+    flickerLights: [],
+    wallMeshes: [],
+    waterReflector: null,
+    totalSize: size * tileSize,
+    hasEntity: false, 
+};
 }
