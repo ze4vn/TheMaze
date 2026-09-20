@@ -705,7 +705,7 @@ export class Game {
 
         this.currentLevel = level;
 
-        this.setBrightMode(level === 0 || level === 4);
+        this.setBrightMode(level === 4);
 
         if (level === 4) this.realityEffect.activate();
         else this.realityEffect.deactivate();
