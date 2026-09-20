@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
+const MANUAL_UP_ROTATION = 0;
+const AUTO_Z_UP_WHEN_NULL = true;
+
+const MODEL_Y_OFFSET = -1.0;
+
+const FORCE_FIT_TO_WORLD = true;
+
 let _cachedOBJ = null;
 let _cachedURL = null;
 
@@ -23,26 +30,26 @@ export function preloadRealityMap(url) {
     });
 }
 
+function fallbackData(size) {
+    const d = [];
+    for (let y = 0; y < size; y++) {
+        d[y] = [];
+        for (let x = 0; x < size; x++) {
+            d[y][x] = { x, y, top: true, right: true, bottom: true, left: true };
+        }
+    }
+    return d;
+}
+
 export function generateRealityMap(scene, size, wallHeight, tileSize) {
     const half = (size - 1) / 2;
     const group = new THREE.Group();
     scene.add(group);
 
-    function fallbackData() {
-        const d = [];
-        for (let y = 0; y < size; y++) {
-            d[y] = [];
-            for (let x = 0; x < size; x++) {
-                d[y][x] = { x, y, top: true, right: true, bottom: true, left: true };
-            }
-        }
-        return d;
-    }
-
     if (!_cachedOBJ) {
         console.warn('[RealityMap] No preloaded OBJ');
         return {
-            group, data: fallbackData(),
+            group, data: fallbackData(size),
             spawnPos: { x: -10, z: -10 }, exitPos: { x: 10, z: 10 },
             entitySpawnPos: null,
             lightSources: [], flickerLights: [], wallMeshes: [],
@@ -55,6 +62,55 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
 
     const obj = _cachedOBJ.clone(true);
     group.add(obj);
+    obj.updateMatrixWorld(true);
+
+    let bbox = new THREE.Box3().setFromObject(obj);
+    let bboxSize = bbox.getSize(new THREE.Vector3());
+    console.log('[RealityMap] Initial size: X=' + bboxSize.x.toFixed(2) +
+                ' Y=' + bboxSize.y.toFixed(2) +
+                ' Z=' + bboxSize.z.toFixed(2));
+
+    let appliedRotX = 0;
+    if (MANUAL_UP_ROTATION !== null) {
+        appliedRotX = MANUAL_UP_ROTATION;
+        console.log('[RealityMap] Using MANUAL rotation.x = ' + appliedRotX.toFixed(4) + ' rad');
+    } else if (AUTO_Z_UP_WHEN_NULL) {
+        const veryFlat = bboxSize.y < bboxSize.x * 0.05 && bboxSize.y < bboxSize.z * 0.05;
+        if (veryFlat) {
+            appliedRotX = -Math.PI / 2;
+            console.log('[RealityMap] Auto-detected Z-up (very flat) → -90° X');
+        }
+    }
+    if (appliedRotX !== 0) {
+        obj.rotation.x = appliedRotX;
+        obj.updateMatrixWorld(true);
+        bbox = new THREE.Box3().setFromObject(obj);
+        bboxSize = bbox.getSize(new THREE.Vector3());
+        console.log('[RealityMap] After rotation: X=' + bboxSize.x.toFixed(2) +
+                    ' Y=' + bboxSize.y.toFixed(2) +
+                    ' Z=' + bboxSize.z.toFixed(2));
+    }
+
+    const expectedSize = size * tileSize;
+    const maxDim = Math.max(bboxSize.x, bboxSize.z);
+    if (maxDim > 0.001 && FORCE_FIT_TO_WORLD) {
+        const scale = expectedSize / maxDim;
+        console.log('[RealityMap] Scaling by ' + scale.toFixed(4));
+        obj.scale.multiplyScalar(scale);
+        obj.updateMatrixWorld(true);
+    }
+
+    bbox = new THREE.Box3().setFromObject(obj);
+    const c = bbox.getCenter(new THREE.Vector3());
+    obj.position.x -= c.x;
+    obj.position.z -= c.z;
+    obj.position.y -= bbox.min.y;
+    obj.position.y += MODEL_Y_OFFSET;
+    obj.updateMatrixWorld(true);
+
+    bbox = new THREE.Box3().setFromObject(obj);
+    console.log('[RealityMap] Final bbox: min=[' + bbox.min.x.toFixed(2) + ',' + bbox.min.y.toFixed(2) + ',' + bbox.min.z.toFixed(2) +
+                ']  max=[' + bbox.max.x.toFixed(2) + ',' + bbox.max.y.toFixed(2) + ',' + bbox.max.z.toFixed(2) + ']');
 
     const texLoader = new THREE.TextureLoader();
     function loadTex(path) {
@@ -151,17 +207,16 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
         return c;
     }
 
-    const bbox = new THREE.Box3().setFromObject(obj);
-    const bboxSize = bbox.getSize(new THREE.Vector3());
+    const bboxSizeFinal = bbox.getSize(new THREE.Vector3());
     const bboxCenter = bbox.getCenter(new THREE.Vector3());
 
     const spawnDefault = new THREE.Vector3(
-        bbox.min.x + bboxSize.x * 0.15, 0,
-        bbox.min.z + bboxSize.z * 0.15
+        bbox.min.x + bboxSizeFinal.x * 0.15, 0,
+        bbox.min.z + bboxSizeFinal.z * 0.15
     );
     const exitDefault = new THREE.Vector3(
-        bbox.max.x - bboxSize.x * 0.15, 0,
-        bbox.max.z - bboxSize.z * 0.15
+        bbox.max.x - bboxSizeFinal.x * 0.15, 0,
+        bbox.max.z - bboxSizeFinal.z * 0.15
     );
 
     let spawnPos = centerOf(spawnMesh) || spawnDefault;
@@ -169,8 +224,8 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     const exitPos = centerOf(exitMesh) || exitDefault;
 
     if (new THREE.Vector3().subVectors(exitPos, spawnPos).length() < 4.0) {
-        exitPos.x = spawnPos.x + bboxSize.x * 0.7;
-        exitPos.z = spawnPos.z + bboxSize.z * 0.7;
+        exitPos.x = spawnPos.x + bboxSizeFinal.x * 0.7;
+        exitPos.z = spawnPos.z + bboxSizeFinal.z * 0.7;
     }
 
     [spawnMesh, entityMesh, exitMesh].forEach((m) => {
@@ -195,7 +250,6 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     }
 
     const data = [];
-
     const probe = tileSize * 0.5;
     for (let ty = 0; ty < size; ty++) {
         data[ty] = [];
