@@ -8,18 +8,36 @@ export function preloadMapObj(url) {
     if (_cachedOBJ && _cachedURL === url) return Promise.resolve(_cachedOBJ);
     return new Promise((resolve, reject) => {
         const loader = new OBJLoader();
-        loader.load(
-            url,
-            (obj) => {
-                _cachedOBJ = obj;
-                _cachedURL = url;
-                console.log('[MapObj] Loaded', url);
-                resolve(obj);
-            },
-            undefined,
-            (err) => { console.warn('[MapObj] Load failed', err); reject(err); }
-        );
+        loader.load(url, (obj) => {
+            _cachedOBJ = obj;
+            _cachedURL = url;
+            console.log('[MapObj] Loaded', url);
+            resolve(obj);
+        }, undefined, (err) => {
+            console.warn('[MapObj] Load failed', err);
+            reject(err);
+        });
     });
+}
+
+function emptyResult(size, tileSize, group) {
+    const d = [];
+    for (let y = 0; y < size; y++) {
+        d[y] = [];
+        for (let x = 0; x < size; x++) {
+            d[y][x] = { x, y, top: false, right: false, bottom: false, left: false };
+        }
+    }
+    return {
+        group, data: d,
+        spawnPos: { x: 0, z: 0 },
+        exitPos: { x: tileSize * 2, z: tileSize * 2 },
+        entitySpawnPos: null,
+        lightSources: [], flickerLights: [], wallMeshes: [],
+        waterReflector: null, totalSize: size * tileSize,
+        collisionMeshes: null,
+        useMeshCollision: false,
+    };
 }
 
 export function generateMapObj(scene, size, wallHeight, tileSize) {
@@ -27,31 +45,9 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const group = new THREE.Group();
     scene.add(group);
 
-    function emptyData() {
-        const d = [];
-        for (let y = 0; y < size; y++) {
-            d[y] = [];
-            for (let x = 0; x < size; x++) {
-                d[y][x] = { x, y, top: false, right: false, bottom: false, left: false };
-            }
-        }
-        return d;
-    }
-
-    function emptyResult() {
-        return {
-            group, data: emptyData(),
-            spawnPos: { x: 0, z: 0 },
-            exitPos:  { x: 0, z: tileSize * 2 },
-            entitySpawnPos: { x: tileSize * 2, z: -tileSize * 2 },
-            lightSources: [], flickerLights: [], wallMeshes: [],
-            waterReflector: null, totalSize: size * tileSize
-        };
-    }
-
     if (!_cachedOBJ) {
-        console.error('[MapObj] No preloaded OBJ — level 0 cannot be generated!');
-        return emptyResult();
+        console.error('[MapObj] No preloaded OBJ!');
+        return emptyResult(size, tileSize, group);
     }
 
     const obj = _cachedOBJ.clone(true);
@@ -65,7 +61,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
                 ' Z=' + bboxSize.z.toFixed(2));
 
     if (bboxSize.y < bboxSize.x * 0.35 && bboxSize.y < bboxSize.z * 0.35) {
-        console.log('[MapObj] Detected Z-up model — rotating -90° X');
+        console.log('[MapObj] Detected Z-up — rotating -90° X');
         obj.rotation.x = -Math.PI / 2;
         obj.updateMatrixWorld(true);
         bbox = new THREE.Box3().setFromObject(obj);
@@ -76,11 +72,9 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const maxDim = Math.max(bboxSize.x, bboxSize.z);
     if (maxDim > 0.001) {
         const scale = expectedSize / maxDim;
-        if (Math.abs(scale - 1) > 0.01) {
-            console.log('[MapObj] Scaling by ' + scale.toFixed(4));
-            obj.scale.multiplyScalar(scale);
-            obj.updateMatrixWorld(true);
-        }
+        console.log('[MapObj] Scaling by ' + scale.toFixed(4));
+        obj.scale.multiplyScalar(scale);
+        obj.updateMatrixWorld(true);
     }
 
     bbox = new THREE.Box3().setFromObject(obj);
@@ -99,7 +93,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.90, metalness: 0.05, side: THREE.DoubleSide }),
         new THREE.MeshStandardMaterial({ color: 0x70757a, roughness: 0.95, metalness: 0.02, side: THREE.DoubleSide }),
     ];
-
     let meshCount = 0;
     obj.traverse((child) => {
         if (!child.isMesh) return;
@@ -140,7 +133,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
             if (!exitMarker   && nameMatches(nm, EXIT_ALIASES))   { exitMarker   = o; continue; }
         }
     });
-
     console.log('[MapObj] Markers — spawn:', !!spawnMarker, 'entity:', !!entityMarker, 'exit:', !!exitMarker);
 
     function markerCenter(mesh) {
@@ -150,7 +142,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         b.getCenter(p);
         return p;
     }
-
     const rawSpawn  = markerCenter(spawnMarker);
     const rawExit   = markerCenter(exitMarker);
     const rawEntity = markerCenter(entityMarker);
@@ -169,16 +160,11 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     ];
 
     let spawnPos, exitPos, entityPos;
+    if (insideBbox(rawSpawn, 1)) { spawnPos = rawSpawn.clone(); spawnPos.y = 0; }
+    else spawnPos = corners[0].clone();
 
-    if (insideBbox(rawSpawn, 1)) {
-        spawnPos = rawSpawn.clone(); spawnPos.y = 0;
-    } else {
-        spawnPos = corners[0].clone();
-    }
-
-    if (insideBbox(rawExit, 1) && rawExit.distanceTo(spawnPos) >= 8) {
-        exitPos = rawExit.clone(); exitPos.y = 0;
-    } else {
+    if (insideBbox(rawExit, 1) && rawExit.distanceTo(spawnPos) >= 8) { exitPos = rawExit.clone(); exitPos.y = 0; }
+    else {
         let best = corners[3], bestD = -1;
         for (const k of corners) {
             const d = k.distanceTo(spawnPos);
@@ -187,9 +173,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         exitPos = best.clone();
     }
 
-    if (insideBbox(rawEntity, 1) &&
-        rawEntity.distanceTo(spawnPos) >= 8 &&
-        rawEntity.distanceTo(exitPos) >= 6) {
+    if (insideBbox(rawEntity, 1) && rawEntity.distanceTo(spawnPos) >= 8 && rawEntity.distanceTo(exitPos) >= 6) {
         entityPos = rawEntity.clone(); entityPos.y = 0;
     } else {
         let best = null, bestScore = -1;
@@ -200,9 +184,8 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         entityPos = best.clone();
     }
 
-    console.log('[MapObj] FINAL spawn:[' + spawnPos.x.toFixed(1) + ',' + spawnPos.z.toFixed(1) +
-                '] exit:[' + exitPos.x.toFixed(1) + ',' + exitPos.z.toFixed(1) +
-                '] entity:[' + entityPos.x.toFixed(1) + ',' + entityPos.z.toFixed(1) + ']');
+    console.log('[MapObj] spawn:[' + spawnPos.x.toFixed(1) + ',' + spawnPos.z.toFixed(1) +
+                '] exit:[' + exitPos.x.toFixed(1) + ',' + exitPos.z.toFixed(1) + ']');
 
     [spawnMarker, entityMarker, exitMarker].forEach((m) => {
         if (!m) return;
@@ -213,18 +196,15 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const raycaster = new THREE.Raycaster();
     const origin = new THREE.Vector3();
     const rayDir = new THREE.Vector3();
-
-    const rayFar = tileSize * 0.7;  
-
+    const rayFar = tileSize * 0.7;
     function edgeHasWall(wx, wz, dx, dz) {
         rayDir.set(dx, 0, dz).normalize();
-
         for (const yf of [0.30, 0.55, 0.80]) {
             origin.set(wx, wallHeight * yf, wz);
             raycaster.set(origin, rayDir);
             raycaster.far = rayFar;
             const hits = raycaster.intersectObject(obj, true);
-            if (hits.length > 0) return true;
+            for (const h of hits) if (h.object.visible !== false) return true;
         }
         return false;
     }
@@ -245,17 +225,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         }
     }
 
-    let wallCount = 0;
-    for (let y = 0; y < size; y++)
-        for (let x = 0; x < size; x++) {
-            const d = data[y][x];
-            if (d.top) wallCount++;
-            if (d.bottom) wallCount++;
-            if (d.left) wallCount++;
-            if (d.right) wallCount++;
-        }
-    console.log('[MapObj] Detected ' + wallCount + ' wall edges total');
-
     const exitLight = new THREE.PointLight(0xff6633, 4.5, 14, 1.6);
     exitLight.position.set(exitPos.x, 1.5, exitPos.z);
     group.add(exitLight);
@@ -265,6 +234,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.85 })
     );
     beacon.position.set(exitPos.x, 1.5, exitPos.z);
+    beacon.raycast = () => {};
     group.add(beacon);
 
     const spawnBeacon = new THREE.Mesh(
@@ -272,6 +242,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.55 })
     );
     spawnBeacon.position.set(spawnPos.x, 0.6, spawnPos.z);
+    spawnBeacon.raycast = () => {};
     group.add(spawnBeacon);
 
     const lightSources = [{ light: exitLight, position: exitPos.clone() }];
@@ -287,6 +258,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         wallMeshes: [],
         waterReflector: null,
         totalSize: size * tileSize,
-        hasEntity: true,
+        collisionMeshes: [obj],
+        useMeshCollision: true,
     };
 }
