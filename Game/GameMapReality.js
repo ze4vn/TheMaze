@@ -46,7 +46,10 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
             spawnPos: { x: -10, z: -10 }, exitPos: { x: 10, z: 10 },
             entitySpawnPos: null,
             lightSources: [], flickerLights: [], wallMeshes: [],
-            waterReflector: null, totalSize: size * tileSize
+            waterReflector: null, totalSize: size * tileSize,
+            collisionMeshes: null,
+            useMeshCollision: false,
+            hasEntity: false,
         };
     }
 
@@ -69,10 +72,10 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     const whiteTex = loadTex('../Textures/WhitePart.png');
     const blackTex = loadTex('../Textures/BlackPart.png');
 
-    const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9,  metalness: 0.0 });
-    const grayMat  = new THREE.MeshStandardMaterial({ map: grayTex,  roughness: 0.7,  metalness: 0.15 });
-    const whiteMat = new THREE.MeshStandardMaterial({ map: whiteTex, roughness: 0.6,  metalness: 0.1 });
-    const blackMat = new THREE.MeshStandardMaterial({ map: blackTex, roughness: 0.85, metalness: 0.05 });
+    const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9,  metalness: 0.0,  side: THREE.DoubleSide });
+    const grayMat  = new THREE.MeshStandardMaterial({ map: grayTex,  roughness: 0.7,  metalness: 0.15, side: THREE.DoubleSide });
+    const whiteMat = new THREE.MeshStandardMaterial({ map: whiteTex, roughness: 0.6,  metalness: 0.1,  side: THREE.DoubleSide });
+    const blackMat = new THREE.MeshStandardMaterial({ map: blackTex, roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide });
 
     let spawnMesh = null, entityMesh = null, exitMesh = null;
     const mirrorMeshes = [];
@@ -111,13 +114,13 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
             const minIdx = axes.indexOf(Math.min(...axes));
 
             let w, h, rotEuler;
-            if (minIdx === 0) {       
+            if (minIdx === 0) {
                 w = s.z; h = s.y;
                 rotEuler = new THREE.Euler(0, Math.PI / 2, 0);
-            } else if (minIdx === 1) {  
+            } else if (minIdx === 1) {
                 w = s.x; h = s.z;
                 rotEuler = new THREE.Euler(-Math.PI / 2, 0, 0);
-            } else {  
+            } else {
                 w = s.x; h = s.y;
                 rotEuler = new THREE.Euler(0, 0, 0);
             }
@@ -192,6 +195,7 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     }
 
     const data = [];
+
     const probe = tileSize * 0.5;
     for (let ty = 0; ty < size; ty++) {
         data[ty] = [];
@@ -215,16 +219,18 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
     const lightSources = [{ light: exitLight, position: exitPos.clone() }];
 
     return {
-    group,
-    data,
-    spawnPos: { x: spawnPos.x, z: spawnPos.z },
-    exitPos:  { x: exitPos.x,  z: exitPos.z  },
-    entitySpawnPos: { x: entityPos.x, z: entityPos.z },
-    lightSources,
-    flickerLights: [],
-    wallMeshes: [],
-    waterReflector: null,
-    totalSize: size * tileSize,
-    hasEntity: false, 
-};
+        group,
+        data,
+        spawnPos: { x: spawnPos.x, z: spawnPos.z },
+        exitPos:  { x: exitPos.x,  z: exitPos.z  },
+        entitySpawnPos: { x: entityPos.x, z: entityPos.z },
+        lightSources,
+        flickerLights: [],
+        wallMeshes: [],
+        waterReflector: null,
+        totalSize: size * tileSize,
+        collisionMeshes: [obj],
+        useMeshCollision: true,
+        hasEntity: false,
+    };
 }
