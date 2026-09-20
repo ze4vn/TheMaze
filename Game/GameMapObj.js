@@ -5,6 +5,11 @@ const MANUAL_UP_ROTATION = 0;
 const AUTO_Z_UP_WHEN_NULL = true;
 
 const MODEL_Y_OFFSET = -1.0;
+const FLOOR_TEXTURE_PATH = '../Textures/Floor_0.png';
+const WALL_TEXTURE_PATH  = '../Textures/Wall_0.png';
+
+const FLOOR_TEX_SCALE = 4.0;
+const WALL_TEX_SCALE  = 3.0;
 
 let _cachedOBJ = null;
 let _cachedURL = null;
@@ -66,12 +71,10 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
                 ' Z=' + bboxSize.z.toFixed(2));
 
     let appliedRotX = 0;
-
     if (MANUAL_UP_ROTATION !== null) {
         appliedRotX = MANUAL_UP_ROTATION;
         console.log('[MapObj] Using MANUAL rotation.x = ' + appliedRotX.toFixed(4) + ' rad');
     } else if (AUTO_Z_UP_WHEN_NULL) {
-        
         const veryFlat = bboxSize.y < bboxSize.x * 0.05 && bboxSize.y < bboxSize.z * 0.05;
         if (veryFlat) {
             appliedRotX = -Math.PI / 2;
@@ -110,27 +113,73 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     console.log('[MapObj] Final bbox: min=[' + bbox.min.x.toFixed(2) + ',' + bbox.min.y.toFixed(2) + ',' + bbox.min.z.toFixed(2) +
                 ']  max=[' + bbox.max.x.toFixed(2) + ',' + bbox.max.y.toFixed(2) + ',' + bbox.max.z.toFixed(2) + ']');
 
-    const fallbackMats = [
-        new THREE.MeshStandardMaterial({ color: 0x666b70, roughness: 0.85, metalness: 0.05, side: THREE.DoubleSide }),
-        new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.90, metalness: 0.05, side: THREE.DoubleSide }),
-        new THREE.MeshStandardMaterial({ color: 0x70757a, roughness: 0.95, metalness: 0.02, side: THREE.DoubleSide }),
-    ];
+    const texLoader = new THREE.TextureLoader();
+
+    const floorTexBase = texLoader.load(
+        FLOOR_TEXTURE_PATH,
+        undefined, undefined,
+        () => console.warn('[MapObj] Floor texture failed to load:', FLOOR_TEXTURE_PATH)
+    );
+    floorTexBase.colorSpace = THREE.SRGBColorSpace;
+    floorTexBase.wrapS = floorTexBase.wrapT = THREE.RepeatWrapping;
+    floorTexBase.anisotropy = 16;
+
+    const wallTexBase = texLoader.load(
+        WALL_TEXTURE_PATH,
+        undefined, undefined,
+        () => console.warn('[MapObj] Wall texture failed to load:', WALL_TEXTURE_PATH)
+    );
+    wallTexBase.colorSpace = THREE.SRGBColorSpace;
+    wallTexBase.wrapS = wallTexBase.wrapT = THREE.RepeatWrapping;
+    wallTexBase.anisotropy = 16;
+
     let meshCount = 0;
+    let floorCount = 0;
+    let wallCount = 0;
+
     obj.traverse((child) => {
         if (!child.isMesh) return;
         meshCount++;
-        const m = child.material;
-        const isDefaultWhite = m && !m.map && m.color &&
-            m.color.r > 0.95 && m.color.g > 0.95 && m.color.b > 0.95;
-        if (!m || isDefaultWhite) {
-            child.material = fallbackMats[meshCount % fallbackMats.length];
+
+        child.geometry.computeBoundingBox();
+        const localBox = child.geometry.boundingBox.clone();
+        const localSize = localBox.getSize(new THREE.Vector3());
+
+        const worldBox = new THREE.Box3().setFromObject(child);
+        const worldSize = worldBox.getSize(new THREE.Vector3());
+
+        const isFlat = worldSize.y < Math.min(worldSize.x, worldSize.z) * 0.20;
+
+        if (isFlat) {
+            floorCount++;
+            const tex = floorTexBase.clone();
+            tex.needsUpdate = true;
+            const u = Math.max(1, Math.round(Math.max(worldSize.x, worldSize.z) / FLOOR_TEX_SCALE));
+            tex.repeat.set(u, u);
+            child.material = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.90,
+                metalness: 0.05,
+                side: THREE.DoubleSide,
+            });
         } else {
-            m.side = THREE.DoubleSide;
+            wallCount++;
+            const tex = wallTexBase.clone();
+            tex.needsUpdate = true;
+            const u = Math.max(1, Math.round(Math.max(worldSize.x, worldSize.z) / WALL_TEX_SCALE));
+            const v = Math.max(1, Math.round(worldSize.y / WALL_TEX_SCALE));
+            tex.repeat.set(u, v);
+            child.material = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.85,
+                metalness: 0.05,
+                side: THREE.DoubleSide,
+            });
         }
         child.castShadow = true;
         child.receiveShadow = true;
     });
-    console.log('[MapObj] Meshes: ' + meshCount);
+    console.log('[MapObj] Meshes: ' + meshCount + ' (floors: ' + floorCount + ', walls: ' + wallCount + ')');
 
     const SPAWN_ALIASES  = ['player_spawn', 'playerspawn', 'player_start', 'playerstart', 'start_point', 'startpoint', 'spawn'];
     const ENTITY_ALIASES = ['entityspawn', 'spawnentity', 'entity_spawn', 'monsterspawn', 'monster_spawn', 'enemyspawn', 'enemy_spawn', 'entity', 'enemy'];
@@ -252,7 +301,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         }
     }
 
-    // ── Visible beacons ──
     const exitLight = new THREE.PointLight(0xff6633, 4.5, 14, 1.6);
     exitLight.position.set(exitPos.x, 1.5, exitPos.z);
     group.add(exitLight);
