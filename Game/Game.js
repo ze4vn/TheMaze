@@ -34,6 +34,7 @@ class SoundManager {
             bloodage: new Audio('../Audio/Bloodage.mp3'),
             death: new Audio('../Audio/Death.mp3'),
             entity: new Audio('../Audio/Entity.mp3'),
+            reality: new Audio('../Audio/ReOfReality.mp3'),
             flashlight: new Audio('../Audio/FlashLight.mp3')
         };
         for (const k in this.sounds) this.sounds[k].loop = true;
@@ -45,6 +46,7 @@ class SoundManager {
         this.sounds.death.loop = false;
         this.sounds.death.volume = 0.85;
         this.sounds.entity.volume = 0.0;
+        this.sounds.reality.volume = 0.55;
         this.sounds.flashlight.loop = false;
         this.sounds.flashlight.volume = 0.7;
     }
@@ -619,6 +621,7 @@ export class Game {
         this.sound.loop('map2', false);
         this.sound.loop('map3', false);
         this.sound.loop('map4', false);
+        this.sound.loop('reality', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
     }
@@ -638,7 +641,8 @@ export class Game {
         this.sound.loop('map1', lvl === 0);
         this.sound.loop('map2', lvl === 1);
         this.sound.loop('map3', lvl === 2);
-        this.sound.loop('map4', lvl === 3 || lvl === 4);
+        this.sound.loop('map4', lvl === 3);
+        this.sound.loop('reality', lvl === 4);
         if (this._bloodageActive) this.sound.loop('bloodage', true);
 
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
@@ -714,7 +718,8 @@ export class Game {
             this.sound.loop('map1', level === 0);
             this.sound.loop('map2', level === 1);
             this.sound.loop('map3', level === 2);
-            this.sound.loop('map4', level === 3 || level === 4);
+            this.sound.loop('map4', level === 3);
+            this.sound.loop('reality', level === 4);
         }
 
         const shouldHaveEntity = (level !== 4) && (result.hasEntity !== false);
@@ -920,6 +925,7 @@ export class Game {
         this.sound.loop('map2', false);
         this.sound.loop('map3', false);
         this.sound.loop('map4', false);
+        this.sound.loop('reality', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
         this._bloodageActive = false;
@@ -941,6 +947,7 @@ export class Game {
         this.sound.loop('map2', false);
         this.sound.loop('map3', false);
         this.sound.loop('map4', false);
+        this.sound.loop('reality', false);
         this.sound.loop('bloodage', false);
         this.sound.loop('entity', false);
         this._bloodageActive = false;
@@ -975,7 +982,8 @@ export class Game {
         this.sound.loop('map1', this.currentLevel === 0);
         this.sound.loop('map2', this.currentLevel === 1);
         this.sound.loop('map3', this.currentLevel === 2);
-        this.sound.loop('map4', this.currentLevel === 3 || this.currentLevel === 4);
+        this.sound.loop('map4', this.currentLevel === 3);
+        this.sound.loop('reality', this.currentLevel === 4);
     }
 
     restartLevels() {
