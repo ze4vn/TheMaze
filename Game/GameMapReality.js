@@ -11,6 +11,10 @@ const FORCE_FIT_TO_WORLD = true;
 
 const WORLD_SIZE_MULTIPLIER = 1.6;
 
+const FLAT_MESH_RATIO   = 0.35; 
+const MIN_COLLISION_DIM = 0.3; 
+const MAX_COLLISION_RATIO = 0.9; 
+
 let _cachedOBJ = null;
 let _cachedURL = null;
 
@@ -205,13 +209,43 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
             console.warn('[RealityMap] Mirror convert failed', e);
         }
     }
+    
+    const collisionMeshes = [];
+    const maxCollisionDim = expectedSize * MAX_COLLISION_RATIO;
+    const overheadLimit = wallHeight * 2.0; 
+
+    obj.traverse((c) => {
+        if (!c.isMesh) return;
+        if (c.visible === false) return;  
+
+        const wb = new THREE.Box3().setFromObject(c);
+        const ws = wb.getSize(new THREE.Vector3());
+
+        const flatThreshold = Math.min(ws.x, ws.z) * FLAT_MESH_RATIO;
+        if (ws.y < flatThreshold) return;
+
+        if (Math.max(ws.x, ws.z) < MIN_COLLISION_DIM) return;
+
+        if (Math.max(ws.x, ws.z) > maxCollisionDim) return;
+
+        if (wb.min.y > overheadLimit) return;
+
+        collisionMeshes.push(c);
+    });
+    console.log('[RealityMap] Collision meshes: ' + collisionMeshes.length + ' / ' +
+                obj.children.length + ' top-level objects');
+
+    if (collisionMeshes.length === 0) {
+        console.warn('[RealityMap] Filter removed all collision meshes — using full OBJ');
+        collisionMeshes.push(obj);
+    }
 
     function centerOf(mesh) {
         if (!mesh) return null;
         const box = new THREE.Box3().setFromObject(mesh);
-        const c = new THREE.Vector3();
-        box.getCenter(c);
-        return c;
+        const c2 = new THREE.Vector3();
+        box.getCenter(c2);
+        return c2;
     }
 
     const bboxSizeFinal = bbox.getSize(new THREE.Vector3());
@@ -290,7 +324,7 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
         wallMeshes: [],
         waterReflector: null,
         totalSize: size * tileSize,
-        collisionMeshes: [obj],
+        collisionMeshes,          
         useMeshCollision: true,
         hasEntity: false,
     };
