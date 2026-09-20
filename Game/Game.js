@@ -709,9 +709,13 @@ export class Game {
             this.sound.loop('map4', level === 3 || level === 4);
         }
 
-        this.spawnEntity();
-
-        // ── Spawn protection + arming ──
+        const shouldHaveEntity = (level !== 4) && (result.hasEntity !== false);
+        if (shouldHaveEntity) {
+            this.spawnEntity();
+        } else {
+            if (this.entity) { this.entity.dispose(); this.entity = null; }
+            this.sound.loop('entity', false);
+        }
         this._spawnProtectionTimer = 5.0;
         this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
         this._playerHasLeftSpawn = false;
@@ -901,7 +905,9 @@ export class Game {
         this.isLocked = true;
         try { this.renderer.domElement.requestPointerLock(); } catch (e) {}
 
-        this.spawnEntity();
+        if (this.currentLevel !== 4) {
+            this.spawnEntity();
+        }
         this._spawnProtectionTimer = 5.0;
         this._spawnCheckPoint.set(this.spawnX, 0, this.spawnZ);
         this._playerHasLeftSpawn = false;
@@ -1148,7 +1154,7 @@ export class Game {
         white.style.opacity = '0';
         this.currentLevel = nextLevel;
         this.generateLevel(nextLevel);
-        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodland'), 300);
+        if (nextLevel === 1) setTimeout(() => this.screen.showLevelTitle(1, 'The Woodlands'), 300);
         else if (nextLevel === 2) setTimeout(() => this.screen.showLevelTitle(2, 'The Null Sewers'), 300);
         else if (nextLevel === 3) setTimeout(() => this.screen.showLevelTitle(3, 'The Labratory'), 300);
         else if (nextLevel === 4) setTimeout(() => this.screen.showLevelTitle(4, 'Questionable Reality'), 300);
