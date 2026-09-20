@@ -194,10 +194,6 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     }
     console.log('[MapObj] Wall edges: ' + wallCount);
 
-    const ambient = new THREE.PointLight(0xaabbdd, 0.6, 120, 1.2);
-    ambient.position.set(bboxCenter.x, wallHeight - 0.5, bboxCenter.z);
-    group.add(ambient);
-
     const exitLight = new THREE.PointLight(0xff6633, 3.0, 12, 1.5);
     exitLight.position.set(exitPos.x, 1.5, exitPos.z);
     group.add(exitLight);
