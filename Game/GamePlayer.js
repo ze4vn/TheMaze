@@ -107,6 +107,8 @@ export class GamePlayer {
         this.viewmodelBaseY = -0.28;
         this.viewmodelBaseZ = -0.55;
         this.viewmodelScale = 0.012;
+
+        this._wallRaycaster = null;
     }
 
     setup(scene, aspect) {
@@ -435,19 +437,31 @@ export class GamePlayer {
         }
 
         const moveDelta = new THREE.Vector3(this.velocity.x * dt, this.velocity.y * dt, this.velocity.z * dt);
-        const newX = this.cameraGroup.position.x + moveDelta.x;
-        const newZ = this.cameraGroup.position.z + moveDelta.z;
+
+        const horDist = Math.hypot(moveDelta.x, moveDelta.z);
+        const steps = Math.max(1, Math.ceil(horDist / (PLAYER_RADIUS * 0.75)));
+        const sx = moveDelta.x / steps;
+        const sz = moveDelta.z / steps;
 
         const mazeData = g.mazeData;
-        const size = g.currentSize;
-        const half = g.currentHalf;
+        const size      = g.currentSize;
+        const half      = g.currentHalf;
 
-        if (this.isWalkableDynamic(mazeData, size, half, newX, this.cameraGroup.position.z)) {
-            this.cameraGroup.position.x = newX;
-        } else this.velocity.x = 0;
-        if (this.isWalkableDynamic(mazeData, size, half, this.cameraGroup.position.x, newZ)) {
-            this.cameraGroup.position.z = newZ;
-        } else this.velocity.z = 0;
+        for (let i = 0; i < steps; i++) {
+            const tryX = this.cameraGroup.position.x + sx;
+            const tryZ = this.cameraGroup.position.z + sz;
+
+            if (this.canMoveTo(tryX, this.cameraGroup.position.z, mazeData, size, half)) {
+                this.cameraGroup.position.x = tryX;
+            } else {
+                this.velocity.x = 0;
+            }
+            if (this.canMoveTo(this.cameraGroup.position.x, tryZ, mazeData, size, half)) {
+                this.cameraGroup.position.z = tryZ;
+            } else {
+                this.velocity.z = 0;
+            }
+        }
 
         this.cameraGroup.position.y += moveDelta.y;
         if (this.cameraGroup.position.y < playerHeight) {
@@ -554,6 +568,38 @@ export class GamePlayer {
         this.smoothMoveX *= 0.9;
         this.smoothMoveY *= 0.9;
         this.mouseSpeed *= 0.95;
+    }
+
+    canMoveTo(x, z, mazeData, size, half) {
+        if (this.game.collisionMeshes && this.game.collisionMeshes.length > 0) {
+            return this._meshFree(x, z);
+        }
+        return this.isWalkableDynamic(mazeData, size, half, x, z);
+    }
+
+    _meshFree(x, z) {
+        if (!this._wallRaycaster) this._wallRaycaster = new THREE.Raycaster();
+        const raycaster = this._wallRaycaster;
+
+        const dirs = [
+            [1,0],[-1,0],[0,1],[0,-1],
+            [0.707,0.707],[-0.707,0.707],[0.707,-0.707],[-0.707,-0.707]
+        ];
+        const heights = [0.25, playerHeight * 0.5, playerHeight * 0.9];
+        const probe = PLAYER_RADIUS;
+
+        for (const [dx, dz] of dirs) {
+            const dir = new THREE.Vector3(dx, 0, dz).normalize();
+            for (const y of heights) {
+                raycaster.set(new THREE.Vector3(x, y, z), dir);
+                raycaster.far = probe;
+                const hits = raycaster.intersectObjects(this.game.collisionMeshes, true);
+                for (const h of hits) {
+                    if (h.object.visible !== false) return false;
+                }
+            }
+        }
+        return true;
     }
 
     isWalkableDynamic(mazeData, size, half, worldX, worldZ) {
