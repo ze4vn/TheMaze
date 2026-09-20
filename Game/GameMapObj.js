@@ -55,32 +55,54 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     obj.updateMatrixWorld(true);
 
     let bbox = new THREE.Box3().setFromObject(obj);
+    let bboxSize = bbox.getSize(new THREE.Vector3());
+
+    console.log('[MapObj] Initial size: X=' + bboxSize.x.toFixed(1) +
+                ' Y=' + bboxSize.y.toFixed(1) +
+                ' Z=' + bboxSize.z.toFixed(1));
+
+    if (bboxSize.y < bboxSize.x * 0.3 && bboxSize.y < bboxSize.z * 0.3) {
+        console.log('[MapObj] ⚠ Model appears to be Z-up (Blender default). Rotating -90° on X.');
+        obj.rotation.x = -Math.PI / 2;
+        obj.updateMatrixWorld(true);
+        bbox = new THREE.Box3().setFromObject(obj);
+        bboxSize = bbox.getSize(new THREE.Vector3());
+        console.log('[MapObj] After rotation size: X=' + bboxSize.x.toFixed(1) +
+                    ' Y=' + bboxSize.y.toFixed(1) +
+                    ' Z=' + bboxSize.z.toFixed(1));
+    }
+
+    const expectedSize = size * tileSize;
+    const maxDim = Math.max(bboxSize.x, bboxSize.z);
+    if (maxDim > expectedSize * 5 || maxDim < expectedSize * 0.2) {
+        const scale = expectedSize / maxDim;
+        console.log('[MapObj] ⚠ Auto-scaling by ' + scale.toFixed(3) + 'x');
+        obj.scale.multiplyScalar(scale);
+        obj.updateMatrixWorld(true);
+        bbox = new THREE.Box3().setFromObject(obj);
+        bboxSize = bbox.getSize(new THREE.Vector3());
+        console.log('[MapObj] After scale size: X=' + bboxSize.x.toFixed(1) +
+                    ' Y=' + bboxSize.y.toFixed(1) +
+                    ' Z=' + bboxSize.z.toFixed(1));
+    }
+
+    bbox = new THREE.Box3().setFromObject(obj);
     let bboxCenter = bbox.getCenter(new THREE.Vector3());
 
-    console.log('[MapObj] Original bbox:');
-    console.log('   min:    [' + bbox.min.x.toFixed(2) + ', ' + bbox.min.y.toFixed(2) + ', ' + bbox.min.z.toFixed(2) + ']');
-    console.log('   max:    [' + bbox.max.x.toFixed(2) + ', ' + bbox.max.y.toFixed(2) + ', ' + bbox.max.z.toFixed(2) + ']');
-    console.log('   center: [' + bboxCenter.x.toFixed(2) + ', ' + bboxCenter.y.toFixed(2) + ', ' + bboxCenter.z.toFixed(2) + ']');
+    console.log('[MapObj] Pre-shift bbox: min=[' + bbox.min.x.toFixed(1) + ',' + bbox.min.y.toFixed(1) + ',' + bbox.min.z.toFixed(1) + ']');
 
-    if (Math.abs(bbox.min.y) > 0.01) {
-        console.log('[MapObj] Shifting Y by ' + (-bbox.min.y).toFixed(2) + ' so floor sits at Y=0');
-        obj.position.y -= bbox.min.y;
-    }
+    obj.position.y -= bbox.min.y;
 
-    if (Math.abs(bboxCenter.x) > 0.5 || Math.abs(bboxCenter.z) > 0.5) {
-        console.log('[MapObj] Shifting X/Z by [' + (-bboxCenter.x).toFixed(2) + ', ' + (-bboxCenter.z).toFixed(2) + ']');
-        obj.position.x -= bboxCenter.x;
-        obj.position.z -= bboxCenter.z;
-    }
+    obj.position.x -= bboxCenter.x;
+    obj.position.z -= bboxCenter.z;
 
     obj.updateMatrixWorld(true);
 
     bbox = new THREE.Box3().setFromObject(obj);
     bboxCenter = bbox.getCenter(new THREE.Vector3());
 
-    console.log('[MapObj] Adjusted bbox:');
-    console.log('   min:    [' + bbox.min.x.toFixed(2) + ', ' + bbox.min.y.toFixed(2) + ', ' + bbox.min.z.toFixed(2) + ']');
-    console.log('   max:    [' + bbox.max.x.toFixed(2) + ', ' + bbox.max.y.toFixed(2) + ', ' + bbox.max.z.toFixed(2) + ']');
+    console.log('[MapObj] Post-shift bbox: min=[' + bbox.min.x.toFixed(1) + ',' + bbox.min.y.toFixed(1) + ',' + bbox.min.z.toFixed(1) +
+                ']  max=[' + bbox.max.x.toFixed(1) + ',' + bbox.max.y.toFixed(1) + ',' + bbox.max.z.toFixed(1) + ']');
 
     const fallbackMats = [
         new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.9, metalness: 0.05, side: THREE.DoubleSide }),
@@ -103,8 +125,8 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         c.castShadow = true;
         c.receiveShadow = true;
     });
-    console.log('[MapObj] Meshes:', meshCount);
-
+    console.log('[MapObj] Meshes: ' + meshCount);
+    
     const SPAWN_ALIASES  = ['spawn', 'player_spawn', 'playerspawn', 'playerstart', 'player_start', 'start_point', 'startpoint', 'start'];
     const ENTITY_ALIASES = ['entityspawn', 'spawnentity', 'entity_spawn', 'entities', 'monsterspawn', 'monster_spawn', 'monster', 'enemyspawn', 'enemy_spawn', 'entity', 'enemy'];
     const EXIT_ALIASES   = ['exit', 'exit_point', 'exitpoint', 'goal', 'finish', 'end'];
@@ -143,36 +165,37 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const rawExit   = markerCenter(exitMarker);
     const rawEntity = markerCenter(entityMarker);
 
-    const xRange = { min: bbox.min.x + 2, max: bbox.max.x - 2 };
-    const zRange = { min: bbox.min.z + 2, max: bbox.max.z - 2 };
+    if (rawSpawn)  console.log('[MapObj] spawn center:  [' + rawSpawn.x.toFixed(1) + ', ' + rawSpawn.z.toFixed(1) + ']');
+    if (rawExit)   console.log('[MapObj] exit center:   [' + rawExit.x.toFixed(1) + ', ' + rawExit.z.toFixed(1) + ']');
+    if (rawEntity) console.log('[MapObj] entity center: [' + rawEntity.x.toFixed(1) + ', ' + rawEntity.z.toFixed(1) + ']');
 
+    const inset = 2.5;
     const corners = [
-        new THREE.Vector3(xRange.min, 0, zRange.min),
-        new THREE.Vector3(xRange.max, 0, zRange.min),
-        new THREE.Vector3(xRange.min, 0, zRange.max),
-        new THREE.Vector3(xRange.max, 0, zRange.max),
+        new THREE.Vector3(bbox.min.x + inset, 0, bbox.min.z + inset),
+        new THREE.Vector3(bbox.max.x - inset, 0, bbox.min.z + inset),
+        new THREE.Vector3(bbox.min.x + inset, 0, bbox.max.z - inset),
+        new THREE.Vector3(bbox.max.x - inset, 0, bbox.max.z - inset),
     ];
+
+    console.log('[MapObj] Corner[0] (spawn fallback):  [' + corners[0].x.toFixed(1) + ', ' + corners[0].z.toFixed(1) + ']');
+    console.log('[MapObj] Corner[3] (exit fallback):   [' + corners[3].x.toFixed(1) + ', ' + corners[3].z.toFixed(1) + ']');
+
+    function insideBbox(p, margin) {
+        return p && p.x > bbox.min.x + margin && p.x < bbox.max.x - margin &&
+                    p.z > bbox.min.z + margin && p.z < bbox.max.z - margin;
+    }
 
     let spawnPos, exitPos, entityPos;
 
-    if (rawSpawn &&
-        rawSpawn.x > xRange.min && rawSpawn.x < xRange.max &&
-        rawSpawn.z > zRange.min && rawSpawn.z < zRange.max) {
-        spawnPos = rawSpawn.clone();
-        spawnPos.y = 0;
+    if (insideBbox(rawSpawn, 1)) {
+        spawnPos = rawSpawn.clone(); spawnPos.y = 0;
     } else {
         spawnPos = corners[0].clone();
-        if (rawSpawn) console.log('[MapObj] spawn marker out of range — using corner 0');
     }
 
-    if (rawExit &&
-        rawExit.x > xRange.min && rawExit.x < xRange.max &&
-        rawExit.z > zRange.min && rawExit.z < zRange.max &&
-        rawExit.distanceTo(spawnPos) >= 12) {
-        exitPos = rawExit.clone();
-        exitPos.y = 0;
+    if (insideBbox(rawExit, 1) && rawExit.distanceTo(spawnPos) >= 12) {
+        exitPos = rawExit.clone(); exitPos.y = 0;
     } else {
-        console.warn('[MapObj] exit marker unusable — using far corner');
         let best = corners[3], bestD = -1;
         for (const c of corners) {
             const d = c.distanceTo(spawnPos);
@@ -181,14 +204,11 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         exitPos = best.clone();
     }
 
-    if (rawEntity &&
-        rawEntity.x > xRange.min && rawEntity.x < xRange.max &&
-        rawEntity.z > zRange.min && rawEntity.z < zRange.max &&
-        rawEntity.distanceTo(spawnPos) >= 12 && rawEntity.distanceTo(exitPos) >= 8) {
-        entityPos = rawEntity.clone();
-        entityPos.y = 0;
+    if (insideBbox(rawEntity, 1) &&
+        rawEntity.distanceTo(spawnPos) >= 12 &&
+        rawEntity.distanceTo(exitPos) >= 8) {
+        entityPos = rawEntity.clone(); entityPos.y = 0;
     } else {
-        console.warn('[MapObj] entity marker unusable — using other corner');
         let best = null, bestScore = -1;
         for (const c of corners) {
             const score = Math.min(c.distanceTo(spawnPos), c.distanceTo(exitPos));
