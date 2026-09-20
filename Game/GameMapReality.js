@@ -9,6 +9,8 @@ const MODEL_Y_OFFSET = -1.0;
 
 const FORCE_FIT_TO_WORLD = true;
 
+const WORLD_SIZE_MULTIPLIER = 1.6;
+
 let _cachedOBJ = null;
 let _cachedURL = null;
 
@@ -91,11 +93,12 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
                     ' Z=' + bboxSize.z.toFixed(2));
     }
 
-    const expectedSize = size * tileSize;
+    const expectedSize = size * tileSize * WORLD_SIZE_MULTIPLIER;
     const maxDim = Math.max(bboxSize.x, bboxSize.z);
     if (maxDim > 0.001 && FORCE_FIT_TO_WORLD) {
         const scale = expectedSize / maxDim;
-        console.log('[RealityMap] Scaling by ' + scale.toFixed(4));
+        console.log('[RealityMap] Scaling by ' + scale.toFixed(4) +
+                    ' (target footprint ' + expectedSize.toFixed(1) + ')');
         obj.scale.multiplyScalar(scale);
         obj.updateMatrixWorld(true);
     }
@@ -190,6 +193,10 @@ export function generateRealityMap(scene, size, wallHeight, tileSize) {
             });
             reflector.position.copy(center);
             reflector.rotation.copy(rotEuler);
+            if (reflector.material) {
+                reflector.material.side = THREE.DoubleSide;
+                reflector.material.needsUpdate = true;
+            }
             group.add(reflector);
 
             mm.visible = false;
