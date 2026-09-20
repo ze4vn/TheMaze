@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
+const MANUAL_UP_ROTATION = Math.PI / 2;
+const AUTO_Z_UP_WHEN_NULL = true;
+
 let _cachedOBJ = null;
 let _cachedURL = null;
- 
+
 export function preloadMapObj(url) {
     if (_cachedOBJ && _cachedURL === url) return Promise.resolve(_cachedOBJ);
     return new Promise((resolve, reject) => {
@@ -60,12 +63,28 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
                 ' Y=' + bboxSize.y.toFixed(2) +
                 ' Z=' + bboxSize.z.toFixed(2));
 
-    if (bboxSize.y < bboxSize.x * 0.35 && bboxSize.y < bboxSize.z * 0.35) {
-        console.log('[MapObj] Detected Z-up — rotating -90° X');
-        obj.rotation.x = -Math.PI / 2;
+    let appliedRotX = 0;
+
+    if (MANUAL_UP_ROTATION !== null) {
+        appliedRotX = MANUAL_UP_ROTATION;
+        console.log('[MapObj] Using MANUAL rotation.x = ' + appliedRotX.toFixed(4) + ' rad');
+    } else if (AUTO_Z_UP_WHEN_NULL) {
+     
+        const veryFlat = bboxSize.y < bboxSize.x * 0.05 && bboxSize.y < bboxSize.z * 0.05;
+        if (veryFlat) {
+            appliedRotX = -Math.PI / 2;
+            console.log('[MapObj] Auto-detected Z-up (very flat) → -90° X');
+        }
+    }
+
+    if (appliedRotX !== 0) {
+        obj.rotation.x = appliedRotX;
         obj.updateMatrixWorld(true);
         bbox = new THREE.Box3().setFromObject(obj);
         bboxSize = bbox.getSize(new THREE.Vector3());
+        console.log('[MapObj] After rotation: X=' + bboxSize.x.toFixed(2) +
+                    ' Y=' + bboxSize.y.toFixed(2) +
+                    ' Z=' + bboxSize.z.toFixed(2));
     }
 
     const expectedSize = size * tileSize;
