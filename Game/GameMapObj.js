@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-const MANUAL_UP_ROTATION = 0;   
+const MANUAL_UP_ROTATION = 0;
 const AUTO_Z_UP_WHEN_NULL = true;
 
 const MODEL_Y_OFFSET = -1.0;
@@ -71,7 +71,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         appliedRotX = MANUAL_UP_ROTATION;
         console.log('[MapObj] Using MANUAL rotation.x = ' + appliedRotX.toFixed(4) + ' rad');
     } else if (AUTO_Z_UP_WHEN_NULL) {
-     
+        
         const veryFlat = bboxSize.y < bboxSize.x * 0.05 && bboxSize.y < bboxSize.z * 0.05;
         if (veryFlat) {
             appliedRotX = -Math.PI / 2;
@@ -103,6 +103,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     obj.position.x -= c.x;
     obj.position.z -= c.z;
     obj.position.y -= bbox.min.y;
+    obj.position.y += MODEL_Y_OFFSET;
     obj.updateMatrixWorld(true);
 
     bbox = new THREE.Box3().setFromObject(obj);
@@ -218,10 +219,15 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
     const origin = new THREE.Vector3();
     const rayDir = new THREE.Vector3();
     const rayFar = tileSize * 0.7;
+
+    const yBase = Math.max(0.05, wallHeight * 0.05);
+    const yMid  = wallHeight * 0.4;
+    const yTop  = wallHeight * 0.75;
+
     function edgeHasWall(wx, wz, dx, dz) {
         rayDir.set(dx, 0, dz).normalize();
-        for (const yf of [0.30, 0.55, 0.80]) {
-            origin.set(wx, wallHeight * yf, wz);
+        for (const y of [yBase, yMid, yTop]) {
+            origin.set(wx, y, wz);
             raycaster.set(origin, rayDir);
             raycaster.far = rayFar;
             const hits = raycaster.intersectObject(obj, true);
@@ -246,6 +252,7 @@ export function generateMapObj(scene, size, wallHeight, tileSize) {
         }
     }
 
+    // ── Visible beacons ──
     const exitLight = new THREE.PointLight(0xff6633, 4.5, 14, 1.6);
     exitLight.position.set(exitPos.x, 1.5, exitPos.z);
     group.add(exitLight);
