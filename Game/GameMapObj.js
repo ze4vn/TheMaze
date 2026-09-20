@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-const MANUAL_UP_ROTATION = Math.PI / 2;
+const MANUAL_UP_ROTATION = 0;
 const AUTO_Z_UP_WHEN_NULL = true;
 
 let _cachedOBJ = null;
