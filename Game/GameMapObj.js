@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-const MANUAL_UP_ROTATION = 0;
+const MANUAL_UP_ROTATION = 0;   
 const AUTO_Z_UP_WHEN_NULL = true;
+
+const MODEL_Y_OFFSET = -1.0;
 
 let _cachedOBJ = null;
 let _cachedURL = null;
